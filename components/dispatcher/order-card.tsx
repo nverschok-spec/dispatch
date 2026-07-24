@@ -20,17 +20,24 @@ const depositConfig = {
   none: { label: "Keine Anzahlung", icon: CircleSlash, className: "text-muted-foreground" },
 } as const
 
-export function OrderCard({ order }: { order: Order }) {
+export function OrderCard({ order, onSelect }: { order: Order; onSelect?: (order: Order) => void }) {
   const Icon = order.icon
   const deposit = depositConfig[order.deposit]
   const DepositIcon = deposit.icon
 
   return (
     <article
-      className="group relative cursor-grab rounded-xl border border-border bg-card p-3.5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md active:cursor-grabbing"
+      className="group relative cursor-pointer rounded-xl border border-border bg-card p-3.5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
       role="button"
       tabIndex={0}
-      aria-label={`Auftrag ${order.title}, ${order.city}`}
+      aria-label={`Auftrag ${order.title}, ${order.city}. Öffnen für Details.`}
+      onClick={() => onSelect?.(order)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault()
+          onSelect?.(order)
+        }
+      }}
     >
       <GripVertical
         className="absolute right-1.5 top-3.5 h-4 w-4 text-muted-foreground/40 opacity-0 transition-opacity group-hover:opacity-100"

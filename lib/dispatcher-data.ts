@@ -16,6 +16,40 @@ export interface Order {
   tags: OrderTag[]
   deposit: DepositStatus
   estMinutes: number
+  contactName: string
+  phone: string
+  description: string
+  accessNote: string
+  photos: string[]
+  laborHours: number
+  hourlyRate: number
+  travelCost: number
+  materialCost: number
+}
+
+export interface PriceBreakdown {
+  labor: number
+  travel: number
+  material: number
+  net: number
+  vat: number
+  gross: number
+  deductibleBase: number // labor + travel (§35a eligible)
+  deductible: number // 20% of eligible, capped
+}
+
+// §35a EStG: 20% of labor + travel/machine costs (not materials) are deductible,
+// capped at 1.200 € per year.
+export function getPriceBreakdown(order: Order): PriceBreakdown {
+  const labor = order.laborHours * order.hourlyRate
+  const travel = order.travelCost
+  const material = order.materialCost
+  const net = labor + travel + material
+  const vat = net * 0.19
+  const gross = net + vat
+  const deductibleBase = (labor + travel) * 1.19 // gross labor portion
+  const deductible = Math.min(deductibleBase * 0.2, 1200)
+  return { labor, travel, material, net, vat, gross, deductibleBase, deductible }
 }
 
 export interface Visit {
@@ -52,6 +86,16 @@ export const unassignedOrders: Order[] = [
     tags: ["new", "notdienst"],
     deposit: "pending",
     estMinutes: 60,
+    contactName: "Familie Krüger",
+    phone: "+49 170 2841923",
+    description:
+      "Der Wasserhahn in der Küche tropft seit gestern durchgehend, auch wenn er fest zugedreht ist. Unter dem Becken sammelt sich Wasser.",
+    accessNote: "3. OG links, Klingel Krüger. Aufzug vorhanden. Hund im Haushalt (freundlich).",
+    photos: ["/fault-faucet.png", "/fault-pipe.png"],
+    laborHours: 1,
+    hourlyRate: 89,
+    travelCost: 35,
+    materialCost: 24.5,
   },
   {
     id: "A-4820",
@@ -65,6 +109,16 @@ export const unassignedOrders: Order[] = [
     tags: ["notdienst"],
     deposit: "paid",
     estMinutes: 120,
+    contactName: "Herr Baumann",
+    phone: "+49 151 55029183",
+    description:
+      "Die Gastherme läuft nicht mehr an, Fehlercode E4 im Display. Keine Warmwasser- und Heizungsversorgung in der Wohnung.",
+    accessNote: "EG, Hinterhaus. Heizungsraum im Keller, Schlüssel beim Nachbarn (Wohnung 2).",
+    photos: ["/fault-pipe.png", "/fault-faucet.png"],
+    laborHours: 2,
+    hourlyRate: 95,
+    travelCost: 35,
+    materialCost: 148,
   },
   {
     id: "A-4818",
@@ -78,6 +132,16 @@ export const unassignedOrders: Order[] = [
     tags: ["new"],
     deposit: "none",
     estMinutes: 90,
+    contactName: "Frau Yılmaz",
+    phone: "+49 176 33810274",
+    description:
+      "Nach einem lauten Knall ist im halben Haus der Strom ausgefallen. Der Sicherungsautomat lässt sich nicht wieder einschalten.",
+    accessNote: "2. OG rechts. Verteilerkasten im Flur neben der Wohnungstür.",
+    photos: ["/fault-pipe.png"],
+    laborHours: 1.5,
+    hourlyRate: 92,
+    travelCost: 35,
+    materialCost: 61,
   },
   {
     id: "A-4815",
@@ -91,6 +155,16 @@ export const unassignedOrders: Order[] = [
     tags: ["wartung"],
     deposit: "paid",
     estMinutes: 75,
+    contactName: "Hausverwaltung Nord",
+    phone: "+49 30 44029100",
+    description:
+      "Jährlicher Wartungsservice der Lüftungsanlage im Treppenhaus gemäß Wartungsvertrag. Filterwechsel inklusive.",
+    accessNote: "Technikraum Dach, Zugang über Treppenhaus B. Hausmeister vor Ort ab 08:00 Uhr.",
+    photos: ["/fault-faucet.png"],
+    laborHours: 1.25,
+    hourlyRate: 85,
+    travelCost: 35,
+    materialCost: 42,
   },
   {
     id: "A-4811",
@@ -104,6 +178,16 @@ export const unassignedOrders: Order[] = [
     tags: ["new"],
     deposit: "pending",
     estMinutes: 45,
+    contactName: "Herr Novak",
+    phone: "+49 152 09183746",
+    description:
+      "Der Abfluss in der Küchenspüle ist komplett verstopft, Wasser läuft nicht mehr ab. Handelsübliche Mittel haben nicht geholfen.",
+    accessNote: "4. OG, kein Aufzug. Klingel Novak.",
+    photos: ["/fault-faucet.png", "/fault-pipe.png"],
+    laborHours: 0.75,
+    hourlyRate: 89,
+    travelCost: 35,
+    materialCost: 12,
   },
   {
     id: "A-4809",
@@ -117,6 +201,16 @@ export const unassignedOrders: Order[] = [
     tags: ["new"],
     deposit: "none",
     estMinutes: 45,
+    contactName: "Frau Peters",
+    phone: "+49 173 88201947",
+    description:
+      "Zwei Steckdosen im Wohnzimmer liefern keinen Strom mehr. Die anderen Räume funktionieren normal.",
+    accessNote: "1. OG, Klingel Peters. Parkplatz im Hof verfügbar.",
+    photos: ["/fault-pipe.png"],
+    laborHours: 0.75,
+    hourlyRate: 92,
+    travelCost: 35,
+    materialCost: 18,
   },
   {
     id: "A-4805",
@@ -130,6 +224,16 @@ export const unassignedOrders: Order[] = [
     tags: ["wartung"],
     deposit: "paid",
     estMinutes: 90,
+    contactName: "Café Sonnenschein",
+    phone: "+49 30 29018475",
+    description:
+      "Die Klimaanlage im Gastraum kühlt seit Tagen nicht mehr richtig. Bitte um Prüfung von Kältemittel und Kompressor.",
+    accessNote: "Ladenlokal EG, Öffnungszeiten ab 09:00 Uhr. Ansprechpartner: Inhaber vor Ort.",
+    photos: ["/fault-faucet.png", "/fault-pipe.png"],
+    laborHours: 1.5,
+    hourlyRate: 95,
+    travelCost: 35,
+    materialCost: 96,
   },
 ]
 

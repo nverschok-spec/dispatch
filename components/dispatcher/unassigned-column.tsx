@@ -1,9 +1,14 @@
+"use client"
+
+import { useState } from "react"
 import { Inbox, Search } from "lucide-react"
-import { unassignedOrders } from "@/lib/dispatcher-data"
+import { unassignedOrders, type Order } from "@/lib/dispatcher-data"
 import { OrderCard } from "./order-card"
+import { OrderDetailModal } from "./order-detail-modal"
 
 export function UnassignedColumn() {
   const notdienstCount = unassignedOrders.filter((o) => o.tags.includes("notdienst")).length
+  const [selected, setSelected] = useState<Order | null>(null)
 
   return (
     <section
@@ -42,9 +47,11 @@ export function UnassignedColumn() {
 
       <div className="flex flex-1 flex-col gap-2.5 overflow-y-auto p-3">
         {unassignedOrders.map((order) => (
-          <OrderCard key={order.id} order={order} />
+          <OrderCard key={order.id} order={order} onSelect={setSelected} />
         ))}
       </div>
+
+      <OrderDetailModal order={selected} onClose={() => setSelected(null)} />
     </section>
   )
 }
