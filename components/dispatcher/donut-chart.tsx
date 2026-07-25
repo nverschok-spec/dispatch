@@ -1,4 +1,6 @@
-export function DonutChart({ percent }: { percent: number }) {
+import type { DonutChartProps } from "@/types/props"
+
+export function DonutChart({ percent }: DonutChartProps) {
   const size = 132
   const stroke = 14
   const radius = (size - stroke) / 2

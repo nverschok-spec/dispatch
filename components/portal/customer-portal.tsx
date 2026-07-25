@@ -19,34 +19,39 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import type { CustomerPortalProps, PortalStepState } from "@/types/props"
 
-type StepState = "done" | "active" | "todo"
-
-type TimelineStep = {
-  label: string
-  time: string
-  state: StepState
-  icon: LucideIcon
+const stepIcons: Record<PortalStepState, LucideIcon> = {
+  done: CheckCircle2,
+  active: Truck,
+  todo: Circle,
 }
 
-const steps: TimelineStep[] = [
-  { label: "Auftrag bestätigt", time: "08:42", state: "done", icon: CheckCircle2 },
-  { label: "Techniker zugewiesen", time: "09:05", state: "done", icon: CheckCircle2 },
-  { label: "Handwerker ist unterwegs", time: "09:18", state: "active", icon: Truck },
-  { label: "Vor Ort — Arbeit beginnt", time: "vsl. 09:34", state: "todo", icon: Circle },
-  { label: "Auftrag abgeschlossen", time: "—", state: "todo", icon: Circle },
-]
+export function CustomerPortal({
+  orderId,
+  statusHeadline,
+  etaMinutes,
+  technician,
+  steps,
+  invoice,
+  mapImageUrl = "/map-berlin.png",
+  onCall,
+  onMessage,
+  onDownloadInvoice,
+}: CustomerPortalProps) {
+  const [eta, setEta] = useState(etaMinutes)
 
-export function CustomerPortal() {
-  const [eta, setEta] = useState(16)
-
-  // Simulated live ETA countdown.
+  // Simulated countdown for the demo map marker — there is no live GPS feed
+  // yet, so this only runs when a real etaMinutes was actually passed in
+  // (i.e. status is genuinely "en route"). See the map caption below for the
+  // honesty note about what this map is and isn't.
   useEffect(() => {
+    if (etaMinutes == null) return
     const id = setInterval(() => {
-      setEta((e) => (e > 1 ? e - 1 : e))
+      setEta((e) => (e != null && e > 1 ? e - 1 : e))
     }, 4000)
     return () => clearInterval(id)
-  }, [])
+  }, [etaMinutes])
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col bg-background">
@@ -59,7 +64,7 @@ export function CustomerPortal() {
           <div>
             <p className="text-sm font-semibold leading-tight text-card-foreground">MeisterPlan</p>
             <p className="text-xs text-muted-foreground">
-              Auftrag <span className="font-mono">H-8941</span>
+              Auftrag <span className="font-mono">{orderId}</span>
             </p>
           </div>
         </div>
@@ -70,82 +75,102 @@ export function CustomerPortal() {
       </header>
 
       <div className="flex-1 space-y-4 p-4">
-        {/* Live status banner */}
-        <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-          <div className="flex items-center gap-3 bg-primary px-5 py-4 text-primary-foreground">
-            <span className="relative flex h-3 w-3">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary-foreground/70" />
-              <span className="relative inline-flex h-3 w-3 rounded-full bg-primary-foreground" />
-            </span>
-            <div className="flex-1">
-              <p className="text-sm font-semibold leading-tight">Handwerker ist unterwegs</p>
-              <p className="text-xs text-primary-foreground/80">Ankunft in ca. {eta} Minuten</p>
+        {/* Status banner — only shows the live-map/countdown chrome once a
+            real etaMinutes came in (status genuinely en route); otherwise a
+            plain status card, no fabricated ETA or ping animation. */}
+        {eta != null ? (
+          <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+            <div className="flex items-center gap-3 bg-primary px-5 py-4 text-primary-foreground">
+              <span className="relative flex h-3 w-3">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary-foreground/70" />
+                <span className="relative inline-flex h-3 w-3 rounded-full bg-primary-foreground" />
+              </span>
+              <div className="flex-1">
+                <p className="text-sm font-semibold leading-tight">{statusHeadline}</p>
+                <p className="text-xs text-primary-foreground/80">Ankunft in ca. {eta} Minuten</p>
+              </div>
+              <div className="text-right">
+                <p className="font-mono text-2xl font-semibold leading-none">{eta}</p>
+                <p className="text-[10px] uppercase tracking-wide text-primary-foreground/80">Min.</p>
+              </div>
             </div>
-            <div className="text-right">
-              <p className="font-mono text-2xl font-semibold leading-none">{eta}</p>
-              <p className="text-[10px] uppercase tracking-wide text-primary-foreground/80">Min.</p>
-            </div>
-          </div>
 
-          {/* Map */}
-          <div className="relative h-44 w-full">
-            <Image
-              src="/map-berlin.png"
-              alt="Live-Karte mit dem Standort des Handwerkers auf dem Weg zu Ihnen"
-              fill
-              className="object-cover"
-              sizes="(max-width: 448px) 100vw, 448px"
-            />
-            <div className="absolute inset-0 bg-primary/5" />
-            {/* Technician marker */}
-            <div className="absolute left-[28%] top-[38%] flex flex-col items-center">
-              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg ring-4 ring-card">
-                <Navigation className="h-4 w-4" aria-hidden="true" />
-              </span>
-            </div>
-            {/* Destination marker */}
-            <div className="absolute right-[24%] top-[64%] flex flex-col items-center">
-              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-success text-success-foreground shadow-lg ring-4 ring-card">
-                <MapPin className="h-4 w-4" aria-hidden="true" />
-              </span>
-              <span className="mt-1 rounded-md bg-card px-1.5 py-0.5 text-[10px] font-medium text-card-foreground shadow">
-                Ihr Zuhause
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Technician card */}
-        <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-          <div className="flex items-center gap-3">
-            <Image
-              src="/tech-michael.png"
-              alt="Handwerker Michael Schmidt"
-              width={56}
-              height={56}
-              className="h-14 w-14 rounded-full object-cover"
-            />
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-card-foreground">Michael Schmidt</p>
-              <p className="text-xs text-muted-foreground">Sanitär-Meister · MeisterPlan GmbH</p>
-              <div className="mt-1 flex items-center gap-1 text-xs">
-                <Star className="h-3.5 w-3.5 fill-warning text-warning" aria-hidden="true" />
-                <span className="font-medium text-card-foreground">4,9</span>
-                <span className="text-muted-foreground">· 312 Bewertungen</span>
+            {/* Map — illustrative, not a live GPS feed (no tracking backend
+                wired yet); marker positions are fixed, not the technician's
+                real location. */}
+            <div className="relative h-44 w-full">
+              <Image
+                src={mapImageUrl}
+                alt="Kartendarstellung (noch keine Live-GPS-Anbindung)"
+                fill
+                className="object-cover"
+                sizes="(max-width: 448px) 100vw, 448px"
+              />
+              <div className="absolute inset-0 bg-primary/5" />
+              <div className="absolute left-[28%] top-[38%] flex flex-col items-center">
+                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg ring-4 ring-card">
+                  <Navigation className="h-4 w-4" aria-hidden="true" />
+                </span>
+              </div>
+              <div className="absolute right-[24%] top-[64%] flex flex-col items-center">
+                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-success text-success-foreground shadow-lg ring-4 ring-card">
+                  <MapPin className="h-4 w-4" aria-hidden="true" />
+                </span>
+                <span className="mt-1 rounded-md bg-card px-1.5 py-0.5 text-[10px] font-medium text-card-foreground shadow">
+                  Ihr Zuhause
+                </span>
               </div>
             </div>
           </div>
-          <div className="mt-3 grid grid-cols-2 gap-2.5">
-            <Button variant="outline" className="gap-1.5 bg-transparent">
-              <Phone className="h-4 w-4" aria-hidden="true" />
-              Anrufen
-            </Button>
-            <Button variant="outline" className="gap-1.5 bg-transparent">
-              <MessageSquare className="h-4 w-4" aria-hidden="true" />
-              Nachricht
-            </Button>
+        ) : (
+          <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+            <p className="text-sm font-semibold text-card-foreground">{statusHeadline}</p>
           </div>
-        </div>
+        )}
+
+        {/* Technician card — omitted entirely until a Mitarbeiter is assigned */}
+        {technician && (
+          <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+            <div className="flex items-center gap-3">
+              {technician.photoUrl ? (
+                <Image
+                  src={technician.photoUrl}
+                  alt={`Handwerker ${technician.name}`}
+                  width={56}
+                  height={56}
+                  className="h-14 w-14 rounded-full object-cover"
+                />
+              ) : (
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
+                  {technician.name.split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase()}
+                </div>
+              )}
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-card-foreground">{technician.name}</p>
+                <p className="text-xs text-muted-foreground">{technician.roleLabel}</p>
+                {technician.rating != null && (
+                  <div className="mt-1 flex items-center gap-1 text-xs">
+                    <Star className="h-3.5 w-3.5 fill-warning text-warning" aria-hidden="true" />
+                    <span className="font-medium text-card-foreground">
+                      {technician.rating.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                    </span>
+                    {technician.reviewCount != null && <span className="text-muted-foreground">· {technician.reviewCount} Bewertungen</span>}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2.5">
+              <Button variant="outline" className="gap-1.5 bg-transparent" onClick={onCall}>
+                <Phone className="h-4 w-4" aria-hidden="true" />
+                Anrufen
+              </Button>
+              <Button variant="outline" className="gap-1.5 bg-transparent" onClick={onMessage}>
+                <MessageSquare className="h-4 w-4" aria-hidden="true" />
+                Nachricht
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Timeline */}
         <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
@@ -155,7 +180,7 @@ export function CustomerPortal() {
           </h2>
           <ol className="relative">
             {steps.map((s, i) => {
-              const Icon = s.icon
+              const Icon = stepIcons[s.state]
               const last = i === steps.length - 1
               return (
                 <li key={s.label} className="relative flex gap-3 pb-5 last:pb-0">
@@ -199,25 +224,35 @@ export function CustomerPortal() {
           </ol>
         </div>
 
-        {/* Invoice download */}
-        <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-          <div className="flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <FileText className="h-5 w-5" aria-hidden="true" />
-            </span>
-            <div className="flex-1">
-              <p className="text-sm font-medium text-card-foreground">Rechnung_H8941.pdf</p>
-              <p className="text-xs text-muted-foreground">ZUGFeRD · elektronische Rechnung</p>
+        {/* Invoice download — appears once the Betrieb has issued the ZUGFeRD invoice */}
+        {invoice ? (
+          <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+            <div className="flex items-center gap-3">
+              <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <FileText className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-card-foreground">{invoice.fileName}</p>
+                <p className="text-xs text-muted-foreground">ZUGFeRD · elektronische Rechnung</p>
+              </div>
             </div>
+            <Button className="mt-3 w-full gap-2" onClick={onDownloadInvoice}>
+              <Download className="h-4 w-4" aria-hidden="true" />
+              Rechnung herunterladen
+            </Button>
+            {invoice.deductibleNotePercent != null && (
+              <p className="mt-2 text-center text-[11px] text-muted-foreground">
+                {invoice.deductibleNotePercent}% der Lohnkosten sind gemäß §35a EStG steuerlich absetzbar.
+              </p>
+            )}
           </div>
-          <Button className="mt-3 w-full gap-2">
-            <Download className="h-4 w-4" aria-hidden="true" />
-            Rechnung herunterladen
-          </Button>
-          <p className="mt-2 text-center text-[11px] text-muted-foreground">
-            20% der Lohnkosten sind gemäß §35a EStG steuerlich absetzbar.
-          </p>
-        </div>
+        ) : (
+          <div className="rounded-2xl border border-border bg-card p-4 text-center shadow-sm">
+            <p className="text-xs text-muted-foreground">
+              Die Rechnung (ZUGFeRD, § 35a EStG-konform) erscheint hier automatisch nach Abschluss des Einsatzes.
+            </p>
+          </div>
+        )}
       </div>
 
       <footer className="px-4 pb-6 pt-2 text-center">

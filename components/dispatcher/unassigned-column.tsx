@@ -1,14 +1,11 @@
 "use client"
 
-import { useState } from "react"
 import { Inbox, Search } from "lucide-react"
-import { unassignedOrders, type Order } from "@/lib/dispatcher-data"
+import type { UnassignedColumnProps } from "@/types/props"
 import { OrderCard } from "./order-card"
-import { OrderDetailModal } from "./order-detail-modal"
 
-export function UnassignedColumn() {
-  const notdienstCount = unassignedOrders.filter((o) => o.tags.includes("notdienst")).length
-  const [selected, setSelected] = useState<Order | null>(null)
+export function UnassignedColumn({ orders, onSelectOrder, onSearch }: UnassignedColumnProps) {
+  const notdienstCount = orders.filter((o) => o.tags.includes("notdienst")).length
 
   return (
     <section
@@ -23,13 +20,13 @@ export function UnassignedColumn() {
           <div>
             <h2 className="text-sm font-semibold leading-tight text-card-foreground">Eingegangen / Ungeplant</h2>
             <p className="text-xs text-muted-foreground">
-              {unassignedOrders.length} Aufträge
+              {orders.length} Aufträge
               {notdienstCount > 0 && <span className="text-destructive"> · {notdienstCount} Notdienst</span>}
             </p>
           </div>
         </div>
         <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-primary px-2 text-xs font-semibold text-primary-foreground">
-          {unassignedOrders.length}
+          {orders.length}
         </span>
       </header>
 
@@ -41,17 +38,16 @@ export function UnassignedColumn() {
             placeholder="Auftrag suchen…"
             aria-label="Auftrag suchen"
             className="w-full bg-transparent text-foreground outline-none placeholder:text-muted-foreground"
+            onChange={(e) => onSearch?.(e.target.value)}
           />
         </div>
       </div>
 
       <div className="flex flex-1 flex-col gap-2.5 overflow-y-auto p-3">
-        {unassignedOrders.map((order) => (
-          <OrderCard key={order.id} order={order} onSelect={setSelected} />
+        {orders.map((order) => (
+          <OrderCard key={order.id} order={order} onSelect={onSelectOrder} />
         ))}
       </div>
-
-      <OrderDetailModal order={selected} onClose={() => setSelected(null)} />
     </section>
   )
 }

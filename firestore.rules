@@ -1,0 +1,58 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── HELPERS ────────────────────────────────────────────────────────────
+    function isAuth() {
+      return request.auth != null;
+    }
+    function isMaster() {
+      return isAuth() && request.auth.token.role == 'master';
+    }
+    function isAdmin(praxisId) {
+      return isAuth()
+          && request.auth.token.role == 'praxisAdmin'
+          && request.auth.token.praxisId == praxisId;
+    }
+
+    // ─── practices (Betriebe) ──────────────────────────────────────────────
+    // Public read: the booking widget (/buchen/[praxisId]) needs to show the
+    // Betrieb's name/Gewerk without requiring a login.
+    match /practices/{praxisId} {
+      allow read: if true;
+      allow create: if isMaster();
+      allow update: if isAdmin(praxisId) || isMaster();
+      allow delete: if isMaster();
+    }
+
+    // ─── appointments (Einsätze) ───────────────────────────────────────────
+    // Creation only via Admin SDK (app/api/book-handwerk — no exact-slot
+    // collision system to guard client-side, unlike the medical original).
+    // Dispatcher reads/writes require the matching praxisAdmin claim.
+    match /appointments/{appointmentId} {
+      allow read: if isAdmin(resource.data.praxisId) || isMaster();
+      allow update: if isAdmin(resource.data.praxisId) || isMaster();
+      allow create, delete: if false;
+    }
+
+    // ─── invoices / invoiceCounters (§ 35a / ZUGFeRD / GoBD) ───────────────
+    // GoBD: issued invoices are immutable — no update/delete path at all, not
+    // even for admins. Written only by app/api/invoices (Admin SDK). Reads
+    // are allowed for the owning praxisAdmin (Analytics panel's "Offene
+    // Rechnungen" list) — GoBD cares about write-immutability, not secrecy
+    // from the Betrieb's own dispatcher.
+    match /invoices/{invoiceId} {
+      allow read: if isAdmin(resource.data.praxisId) || isMaster();
+      allow write: if false;
+    }
+    match /invoiceCounters/{counterId} {
+      allow read, write: if false;
+    }
+
+    // ─── users ──────────────────────────────────────────────────────────────
+    match /users/{uid} {
+      allow read: if isAuth() && (request.auth.uid == uid || isMaster());
+      allow write: if isMaster();
+    }
+  }
+}

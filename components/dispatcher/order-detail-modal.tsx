@@ -14,28 +14,43 @@ import {
   Check,
   Receipt,
   Info,
+  CalendarClock,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { technicians, getPriceBreakdown, type Order } from "@/lib/dispatcher-data"
+import { getPriceBreakdown } from "@/lib/dispatcher-data"
+import { resolveIcon, categoryIconMap } from "@/lib/icon-map"
 import { cn } from "@/lib/utils"
+import type { OrderDetailModalProps } from "@/types/props"
 
 const eur = (n: number) =>
   new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n)
 
+// Local (not UTC) "YYYY-MM-DDTHH:mm" for <input type="datetime-local">,
+// rounded up to the next half hour as a sane default arrival slot.
+function defaultArrivalValue(): string {
+  const d = new Date()
+  d.setMinutes(d.getMinutes() < 30 ? 30 : 60, 0, 0)
+  const pad = (n: number) => String(n).padStart(2, "0")
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 export function OrderDetailModal({
   order,
   onClose,
-}: {
-  order: Order | null
-  onClose: () => void
-}) {
+  technicians,
+  onAssignTechnician,
+  onGenerateInvoice,
+}: OrderDetailModalProps) {
   const [assignee, setAssignee] = useState<string>("")
+  const [arrivalValue, setArrivalValue] = useState<string>(defaultArrivalValue())
+  const [assigning, setAssigning] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [generated, setGenerated] = useState(false)
 
   useEffect(() => {
     if (order) {
       setAssignee("")
+      setArrivalValue(defaultArrivalValue())
       setDropdownOpen(false)
       setGenerated(false)
     }
@@ -57,7 +72,7 @@ export function OrderDetailModal({
 
   if (!order) return null
 
-  const Icon = order.icon
+  const Icon = resolveIcon(categoryIconMap, order.categoryKey)
   const price = getPriceBreakdown(order)
   const selectedTech = technicians.find((t) => t.id === assignee)
 
@@ -250,7 +265,54 @@ export function OrderDetailModal({
                 <Clock className="h-3.5 w-3.5" aria-hidden="true" />
                 Geschätzte Dauer: <span className="font-mono">{order.estMinutes} Min.</span>
               </p>
+
+              <label className="mt-3 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                <CalendarClock className="h-3.5 w-3.5" aria-hidden="true" />
+                Ankunftszeit
+              </label>
+              <input
+                type="datetime-local"
+                value={arrivalValue}
+                onChange={(e) => setArrivalValue(e.target.value)}
+                className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-card-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+              />
+
+              <Button
+                className="mt-3 w-full"
+                disabled={!assignee || assigning || !arrivalValue}
+                onClick={async () => {
+                  if (!assignee || !arrivalValue) return
+                  setAssigning(true)
+                  try {
+                    await onAssignTechnician?.(order.id, assignee, new Date(arrivalValue))
+                  } finally {
+                    setAssigning(false)
+                  }
+                }}
+              >
+                {assigning ? "Wird zugewiesen…" : "Techniker & Zeit zuweisen"}
+              </Button>
             </section>
+
+            {/* Materials reported by the technician on-site */}
+            {order.materialsUsed && order.materialsUsed.length > 0 && (
+              <section>
+                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Verwendetes Material
+                </h3>
+                <ul className="space-y-1 rounded-lg border border-border bg-muted/60 p-3 text-sm text-card-foreground">
+                  {order.materialsUsed.map((m, i) => (
+                    <li key={i} className="flex items-center justify-between">
+                      <span>{m.name}</span>
+                      <span className="font-mono text-muted-foreground">{m.qty} {m.unit}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-1.5 text-[11px] text-muted-foreground">
+                  Vom Techniker vor Ort gemeldet, zur Dokumentation. Materialpreise sind hier noch nicht hinterlegt.
+                </p>
+              </section>
+            )}
 
             {/* Price calculation */}
             <section>
@@ -312,7 +374,13 @@ export function OrderDetailModal({
             <Button variant="outline" onClick={onClose}>
               Abbrechen
             </Button>
-            <Button onClick={() => setGenerated(true)} className="gap-1.5">
+            <Button
+              onClick={async () => {
+                await onGenerateInvoice?.(order.id)
+                setGenerated(true)
+              }}
+              className="gap-1.5"
+            >
               <FileText className="h-4 w-4" aria-hidden="true" />
               {generated ? "Rechnung erstellt ✓" : "ZUGFeRD PDF Rechnung generieren"}
             </Button>

@@ -1,0 +1,39 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isAuth() {
+      return request.auth != null;
+    }
+    function isMaster() {
+      return isAuth() && request.auth.token.role == 'master';
+    }
+    function isAdmin(praxisId) {
+      return isAuth()
+          && request.auth.token.role == 'praxisAdmin'
+          && request.auth.token.praxisId == praxisId;
+    }
+
+    // Mitarbeiter avatars — shown in the dispatcher Timeline, editable only by
+    // the Betrieb's admin.
+    match /practices/{praxisId}/doctors/{doctorId}/{fileName} {
+      allow read: if true;
+      allow write: if (isAdmin(praxisId) || isMaster())
+                    && request.resource.size < 5 * 1024 * 1024
+                    && request.resource.contentType.matches('image/.*');
+    }
+
+    // Booking-intake photos (lib/firebase/storage.ts uploadBookingPhoto) —
+    // uploaded by anonymous customers during /buchen (no account, matches the
+    // "ohne Registrierung" booking flow), so this must allow unauthenticated
+    // writes. Constrained by path (draftId is a client-generated UUID, not
+    // guessable/enumerable), size, and content-type to keep it from becoming
+    // an open upload bucket. Read stays admin-only — these are private photos
+    // of a customer's home, not public assets like avatars.
+    match /practices/{praxisId}/booking-drafts/{draftId}/{fileName} {
+      allow read: if isAdmin(praxisId) || isMaster();
+      allow write: if request.resource.size < 8 * 1024 * 1024
+                    && request.resource.contentType == 'image/jpeg';
+    }
+  }
+}

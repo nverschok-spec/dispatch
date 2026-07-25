@@ -1,16 +1,9 @@
 import { CalendarClock, MapPin, ChevronLeft, ChevronRight } from "lucide-react"
-import {
-  technicians,
-  DAY_START,
-  DAY_END,
-  visitKindLabels,
-  type Technician,
-  type Visit,
-} from "@/lib/dispatcher-data"
+import { visitKindLabels } from "@/lib/dispatcher-data"
 import { cn } from "@/lib/utils"
+import type { TimelineProps, Technician, Visit } from "@/types/props"
 
 const HOUR_HEIGHT = 68
-const hours = Array.from({ length: DAY_END - DAY_START + 1 }, (_, i) => DAY_START + i)
 
 const statusConfig: Record<Technician["status"], { label: string; dot: string; text: string }> = {
   "vor-ort": { label: "Vor Ort", dot: "bg-success", text: "text-success" },
@@ -32,8 +25,8 @@ function fmt(hour: number) {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`
 }
 
-function VisitBlock({ visit }: { visit: Visit }) {
-  const top = (visit.start - DAY_START) * HOUR_HEIGHT
+function VisitBlock({ visit, dayStart }: { visit: Visit; dayStart: number }) {
+  const top = (visit.start - dayStart) * HOUR_HEIGHT
   const height = (visit.end - visit.start) * HOUR_HEIGHT
   return (
     <div
@@ -67,7 +60,16 @@ function VisitBlock({ visit }: { visit: Visit }) {
   )
 }
 
-export function Timeline() {
+export function Timeline({
+  technicians,
+  dayStart = 8,
+  dayEnd = 17,
+  selectedDateLabel = "Mo, 27. Juli",
+  onPrevDay,
+  onNextDay,
+}: TimelineProps) {
+  const hours = Array.from({ length: dayEnd - dayStart + 1 }, (_, i) => dayStart + i)
+
   return (
     <section
       aria-label="Techniker Zeitplan"
@@ -85,15 +87,17 @@ export function Timeline() {
         </div>
         <div className="flex items-center gap-1">
           <button
+            onClick={onPrevDay}
             className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             aria-label="Vorheriger Tag"
           >
             <ChevronLeft className="h-4 w-4" aria-hidden="true" />
           </button>
           <span className="rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground">
-            Mo, 27. Juli
+            {selectedDateLabel}
           </span>
           <button
+            onClick={onNextDay}
             className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             aria-label="Nächster Tag"
           >
@@ -157,7 +161,7 @@ export function Timeline() {
               {/* visits */}
               <div className="absolute inset-0">
                 {tech.visits.map((visit) => (
-                  <VisitBlock key={visit.id} visit={visit} />
+                  <VisitBlock key={visit.id} visit={visit} dayStart={dayStart} />
                 ))}
               </div>
             </div>

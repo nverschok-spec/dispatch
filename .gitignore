@@ -9,7 +9,18 @@ __v0_jsx-dev-runtime.ts
 # Environment variables
 .env*.local
 
+# Firebase Admin SDK — НИКОГДА не коммитить
+tools/serviceAccountKey.json
+
 # Common ignores
 node_modules
 .next/
 .DS_Store
+devserver.log
+tsconfig.tsbuildinfo
+_test_*.js
+_cleanup*.js
+_reset_*.js
+_verify_*.js
+.vercel
+.env*

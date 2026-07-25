@@ -21,65 +21,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { SignaturePad } from "./signature-pad"
-
-type Stop = {
-  id: string
-  time: string
-  title: string
-  customer: string
-  street: string
-  city: string
-  kind: "Reparatur" | "Wartung" | "Notdienst" | "Installation"
-  status: "done" | "current" | "upcoming"
-  phone: string
-}
-
-const route: Stop[] = [
-  {
-    id: "H-8901",
-    time: "08:00",
-    title: "Heizungswartung",
-    customer: "Fam. Albrecht",
-    street: "Choriner Str. 21",
-    city: "10119 Berlin",
-    kind: "Wartung",
-    status: "done",
-    phone: "+49 170 1122334",
-  },
-  {
-    id: "H-8941",
-    time: "10:00",
-    title: "Rohrbruch im Bad",
-    customer: "Herr Baumann",
-    street: "Danziger Str. 60",
-    city: "10435 Berlin",
-    kind: "Notdienst",
-    status: "current",
-    phone: "+49 151 55029183",
-  },
-  {
-    id: "H-8955",
-    time: "13:30",
-    title: "Boiler Installation",
-    customer: "Frau Kern",
-    street: "Greifswalder Str. 4",
-    city: "10405 Berlin",
-    kind: "Installation",
-    status: "upcoming",
-    phone: "+49 176 33810274",
-  },
-  {
-    id: "H-8962",
-    time: "15:30",
-    title: "Armatur tauschen",
-    customer: "Herr Novak",
-    street: "Stargarder Str. 5",
-    city: "10437 Berlin",
-    kind: "Reparatur",
-    status: "upcoming",
-    phone: "+49 152 09183746",
-  },
-]
+import type { TechnicianAppProps, Stop, Material, JobCompletionProps } from "@/types/props"
 
 const kindStyles: Record<Stop["kind"], string> = {
   Reparatur: "bg-primary/10 text-primary",
@@ -88,15 +30,7 @@ const kindStyles: Record<Stop["kind"], string> = {
   Installation: "bg-warning/15 text-warning",
 }
 
-type Material = { id: number; name: string; qty: number; unit: string }
-
-export function TechnicianApp() {
-  const [activeStop, setActiveStop] = useState<Stop | null>(null)
-
-  if (activeStop) {
-    return <JobCompletion stop={activeStop} onBack={() => setActiveStop(null)} />
-  }
-
+export function TechnicianApp({ technicianInitials, dateLabel, summary, route, onOpenStop }: TechnicianAppProps) {
   const nextStop = route.find((s) => s.status === "current") ?? null
 
   return (
@@ -108,19 +42,21 @@ export function TechnicianApp() {
           </div>
           <div>
             <p className="text-sm font-semibold leading-tight text-card-foreground">Meine Tour heute</p>
-            <p className="text-xs text-muted-foreground">Dienstag, 24. Juli · 4 Aufträge</p>
+            <p className="text-xs text-muted-foreground">
+              {dateLabel} · {route.length} Aufträge
+            </p>
           </div>
         </div>
         <span className="flex h-9 w-9 items-center justify-center rounded-full bg-muted text-xs font-semibold text-foreground">
-          JW
+          {technicianInitials}
         </span>
       </header>
 
       {/* Day progress summary */}
       <div className="grid grid-cols-3 gap-2 px-4 pt-4">
-        <SummaryStat label="Erledigt" value="1/4" icon={CheckCircle2} tone="success" />
-        <SummaryStat label="Fahrzeit" value="0:42" icon={Navigation} tone="primary" />
-        <SummaryStat label="Nächster" value="10:00" icon={Clock} tone="muted" />
+        <SummaryStat label="Erledigt" value={summary.completedLabel} icon={CheckCircle2} tone="success" />
+        <SummaryStat label="Fahrzeit" value={summary.driveTimeLabel} icon={Navigation} tone="primary" />
+        <SummaryStat label="Nächster" value={summary.nextStopTimeLabel} icon={Clock} tone="muted" />
       </div>
 
       <div className="flex-1 space-y-3 p-4">
@@ -130,7 +66,7 @@ export function TechnicianApp() {
             <li key={stop.id}>
               <button
                 type="button"
-                onClick={() => stop.status !== "done" && setActiveStop(stop)}
+                onClick={() => stop.status !== "done" && onOpenStop?.(stop)}
                 disabled={stop.status === "done"}
                 className={cn(
                   "flex w-full items-center gap-3 rounded-2xl border bg-card p-3.5 text-left shadow-sm transition-all",
@@ -174,12 +110,12 @@ export function TechnicianApp() {
       {/* Sticky primary action */}
       {nextStop && (
         <div className="sticky bottom-0 border-t border-border bg-card/95 p-4 backdrop-blur">
-          <Button size="lg" className="h-14 w-full gap-2 text-base font-semibold" onClick={() => setActiveStop(nextStop)}>
+          <Button size="lg" className="h-14 w-full gap-2 text-base font-semibold" onClick={() => onOpenStop?.(nextStop)}>
             <Navigation className="h-5 w-5" aria-hidden="true" />
-            Anfahrt starten
+            Nächster Auftrag
           </Button>
           <p className="mt-2 text-center text-[11px] text-muted-foreground">
-            Sendet automatisch eine ETA-SMS an {nextStop.customer}.
+            {nextStop.customer} · {nextStop.street}, {nextStop.city}
           </p>
         </div>
       )}
@@ -215,17 +151,26 @@ function SummaryStat({
   )
 }
 
-function JobCompletion({ stop, onBack }: { stop: Stop; onBack: () => void }) {
+export function JobCompletion({ stop, initialMaterials, initialDurationMinutes, onBack, onStartRoute, onComplete }: JobCompletionProps) {
   const [enRoute, setEnRoute] = useState(false)
-  const [materials, setMaterials] = useState<Material[]>([
-    { id: 1, name: "Dichtungsring 1/2\"", qty: 2, unit: "Stk" },
-    { id: 2, name: "Kupferrohr 15mm", qty: 1, unit: "m" },
-  ])
-  const [duration, setDuration] = useState(90)
+  const [startingRoute, setStartingRoute] = useState(false)
+  const [materials, setMaterials] = useState<Material[]>(initialMaterials ?? [])
+  const [duration, setDuration] = useState(initialDurationMinutes ?? 90)
   const [signed, setSigned] = useState(false)
   const [done, setDone] = useState(false)
+  const [completing, setCompleting] = useState(false)
 
-  function updateQty(id: number, delta: number) {
+  async function handleStartRoute() {
+    setStartingRoute(true)
+    try {
+      await onStartRoute?.()
+      setEnRoute(true)
+    } finally {
+      setStartingRoute(false)
+    }
+  }
+
+  function updateQty(id: Material["id"], delta: number) {
     setMaterials((prev) =>
       prev.map((m) => (m.id === id ? { ...m, qty: Math.max(0, m.qty + delta) } : m)),
     )
@@ -233,6 +178,16 @@ function JobCompletion({ stop, onBack }: { stop: Stop; onBack: () => void }) {
 
   function addMaterial() {
     setMaterials((prev) => [...prev, { id: Date.now(), name: "Neues Material", qty: 1, unit: "Stk" }])
+  }
+
+  async function handleComplete() {
+    setCompleting(true)
+    try {
+      await onComplete({ stopId: stop.id, materials, durationMinutes: duration, signed })
+      setDone(true)
+    } finally {
+      setCompleting(false)
+    }
   }
 
   if (done) {
@@ -243,8 +198,8 @@ function JobCompletion({ stop, onBack }: { stop: Stop; onBack: () => void }) {
         </span>
         <h1 className="mt-5 text-xl font-bold text-foreground">Auftrag abgeschlossen</h1>
         <p className="mt-2 max-w-xs text-sm text-muted-foreground">
-          Der Arbeitsnachweis für <span className="font-mono">{stop.id}</span> wurde gespeichert. Die ZUGFeRD-Rechnung
-          wird automatisch erstellt und an {stop.customer} gesendet.
+          Der Arbeitsnachweis für <span className="font-mono">{stop.id}</span> wurde gespeichert. Der Disponent kann
+          jetzt die ZUGFeRD-Rechnung erstellen.
         </p>
         <Button className="mt-6 w-full" onClick={onBack}>
           Zurück zur Tour
@@ -298,17 +253,18 @@ function JobCompletion({ stop, onBack }: { stop: Stop; onBack: () => void }) {
           <Button
             variant={enRoute ? "outline" : "default"}
             className={cn("mt-3 w-full gap-2", enRoute && "bg-transparent")}
-            onClick={() => setEnRoute(true)}
+            onClick={handleStartRoute}
+            disabled={enRoute || startingRoute}
           >
             {enRoute ? (
               <>
                 <Send className="h-4 w-4" aria-hidden="true" />
-                ETA-SMS gesendet
+                Kunde informiert
               </>
             ) : (
               <>
                 <Navigation className="h-4 w-4" aria-hidden="true" />
-                Anfahrt starten
+                {startingRoute ? "Wird gestartet…" : "Anfahrt starten"}
               </>
             )}
           </Button>
@@ -405,11 +361,11 @@ function JobCompletion({ stop, onBack }: { stop: Stop; onBack: () => void }) {
         <Button
           size="lg"
           className="h-14 w-full gap-2 text-base font-semibold"
-          disabled={!signed}
-          onClick={() => setDone(true)}
+          disabled={!signed || completing}
+          onClick={handleComplete}
         >
           <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
-          Auftrag abschließen
+          {completing ? "Wird abgeschlossen…" : "Auftrag abschließen"}
         </Button>
         {!signed && (
           <p className="mt-2 text-center text-[11px] text-muted-foreground">

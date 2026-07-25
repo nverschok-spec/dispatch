@@ -1,5 +1,6 @@
 import { Clock, MapPin, GripVertical, CircleCheck, CircleDashed, CircleSlash } from "lucide-react"
-import type { Order } from "@/lib/dispatcher-data"
+import type { OrderCardProps } from "@/types/props"
+import { resolveIcon, categoryIconMap } from "@/lib/icon-map"
 import { cn } from "@/lib/utils"
 
 const tagStyles: Record<string, string> = {
@@ -20,8 +21,8 @@ const depositConfig = {
   none: { label: "Keine Anzahlung", icon: CircleSlash, className: "text-muted-foreground" },
 } as const
 
-export function OrderCard({ order, onSelect }: { order: Order; onSelect?: (order: Order) => void }) {
-  const Icon = order.icon
+export function OrderCard({ order, onSelect }: OrderCardProps) {
+  const Icon = resolveIcon(categoryIconMap, order.categoryKey)
   const deposit = depositConfig[order.deposit]
   const DepositIcon = deposit.icon
 
