@@ -57,9 +57,11 @@ export default function EinstellungenPage() {
     }
   }, [authLoading, user, claims, router]);
 
+  const [loadError, setLoadError] = useState(false);
+
   useEffect(() => {
     if (!claims?.praxisId) return;
-    getPractice(claims.praxisId).then(setPractice);
+    getPractice(claims.praxisId).then(setPractice).catch(() => setLoadError(true));
   }, [claims?.praxisId]);
 
   function showToast(msg: string) {
@@ -277,6 +279,14 @@ export default function EinstellungenPage() {
     }
   }
 
+  if (loadError) {
+    return (
+      <div className="flex h-dvh flex-col items-center justify-center gap-2 bg-background text-sm text-muted-foreground">
+        <p>Betriebsdaten konnten nicht geladen werden.</p>
+        <button onClick={() => window.location.reload()} className="text-primary underline underline-offset-2">Erneut versuchen</button>
+      </div>
+    );
+  }
   if (authLoading || !practice) {
     return <div className="flex h-dvh items-center justify-center bg-background text-sm text-muted-foreground">Lädt…</div>;
   }

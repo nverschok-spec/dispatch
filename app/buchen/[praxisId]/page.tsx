@@ -30,7 +30,9 @@ export default function BookingPage() {
   const [draftId] = useState(() => crypto.randomUUID())
 
   useEffect(() => {
-    getPractice(praxisId).then((p) => (p ? setPractice(p) : setNotFound(true)))
+    getPractice(praxisId)
+      .then((p) => (p ? setPractice(p) : setNotFound(true)))
+      .catch(() => setNotFound(true))
   }, [praxisId])
 
   if (notFound) {

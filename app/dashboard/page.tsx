@@ -40,10 +40,12 @@ export default function DispatcherPage() {
     }
   }, [authLoading, user, claims, router])
 
+  const [loadError, setLoadError] = useState(false)
+
   useEffect(() => {
     if (!claims?.praxisId) return
-    getPractice(claims.praxisId).then(setPractice)
-    getOpenInvoices(claims.praxisId).then((invs) => setOpenInvoices(invs.map(invoiceToSummary)))
+    getPractice(claims.praxisId).then(setPractice).catch(() => setLoadError(true))
+    getOpenInvoices(claims.praxisId).then((invs) => setOpenInvoices(invs.map(invoiceToSummary))).catch(() => {})
     return subscribeToAppointments(claims.praxisId, setAppointments)
   }, [claims?.praxisId])
 
@@ -112,6 +114,14 @@ export default function DispatcherPage() {
     if (res.ok) setOpenInvoices((list) => list.filter((inv) => inv.id !== invoiceId))
   }
 
+  if (loadError) {
+    return (
+      <div className="flex h-dvh flex-col items-center justify-center gap-2 bg-background text-sm text-muted-foreground">
+        <p>Betriebsdaten konnten nicht geladen werden.</p>
+        <button onClick={() => window.location.reload()} className="text-primary underline underline-offset-2">Erneut versuchen</button>
+      </div>
+    )
+  }
   if (authLoading || !practice) {
     return <div className="flex h-dvh items-center justify-center bg-background text-sm text-muted-foreground">Lädt…</div>
   }

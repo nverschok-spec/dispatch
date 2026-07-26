@@ -49,13 +49,17 @@ export default function MasterPage() {
     }
   }, [authLoading, user, claims, router]);
 
+  const [loadError, setLoadError] = useState(false);
+
   useEffect(() => {
     if (!(user && claims?.role === 'master')) return;
-    Promise.all([getAllPractices(), getAllAppointmentsForStats()]).then(([p, a]) => {
-      setPractices(p.sort((x, y) => x.name.localeCompare(y.name)));
-      setAppointments(a);
-      setLoadingData(false);
-    });
+    Promise.all([getAllPractices(), getAllAppointmentsForStats()])
+      .then(([p, a]) => {
+        setPractices(p.sort((x, y) => x.name.localeCompare(y.name)));
+        setAppointments(a);
+        setLoadingData(false);
+      })
+      .catch(() => { setLoadError(true); setLoadingData(false); });
   }, [user, claims]);
 
   function showToast(msg: string) {
@@ -171,6 +175,14 @@ export default function MasterPage() {
     }
   }
 
+  if (loadError) {
+    return (
+      <div className="flex h-dvh flex-col items-center justify-center gap-2 bg-background text-sm text-muted-foreground">
+        <p>Daten konnten nicht geladen werden.</p>
+        <button onClick={() => window.location.reload()} className="text-primary underline underline-offset-2">Erneut versuchen</button>
+      </div>
+    );
+  }
   if (authLoading || loadingData) {
     return <div className="flex h-dvh items-center justify-center bg-background text-sm text-muted-foreground">Lädt…</div>;
   }
