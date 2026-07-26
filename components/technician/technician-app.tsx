@@ -16,12 +16,15 @@ import {
   CheckCircle2,
   Send,
   CircleDot,
+  X,
   type LucideIcon,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { SignaturePad } from "./signature-pad"
 import type { TechnicianAppProps, Stop, Material, JobCompletionProps } from "@/types/props"
+
+const MATERIAL_UNITS = ["Stk", "m", "m²", "m³", "kg", "l", "Rolle", "Sack", "Paar"] as const
 
 const kindStyles: Record<Stop["kind"], string> = {
   Reparatur: "bg-primary/10 text-primary",
@@ -175,14 +178,16 @@ export function JobCompletion({ stop, initialMaterials, initialDurationMinutes, 
     }
   }
 
-  function updateQty(id: Material["id"], delta: number) {
-    setMaterials((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, qty: Math.max(0, m.qty + delta) } : m)),
-    )
+  function updateMaterial(id: Material["id"], patch: Partial<Material>) {
+    setMaterials((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m)))
+  }
+
+  function removeMaterial(id: Material["id"]) {
+    setMaterials((prev) => prev.filter((m) => m.id !== id))
   }
 
   function addMaterial() {
-    setMaterials((prev) => [...prev, { id: Date.now(), name: "Neues Material", qty: 1, unit: "Stk" }])
+    setMaterials((prev) => [...prev, { id: Date.now(), name: "", qty: 1, unit: "Stk" }])
   }
 
   async function handleComplete() {
@@ -287,28 +292,43 @@ export function JobCompletion({ stop, initialMaterials, initialDurationMinutes, 
           </h2>
           <ul className="space-y-2">
             {materials.map((m) => (
-              <li key={m.id} className="flex items-center gap-2 rounded-lg border border-border bg-background p-2.5">
-                <span className="flex-1 text-sm text-card-foreground">{m.name}</span>
-                <div className="flex items-center gap-1.5">
+              <li key={m.id} className="rounded-lg border border-border bg-background p-2.5">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={m.name}
+                    onChange={(e) => updateMaterial(m.id, { name: e.target.value })}
+                    placeholder="z. B. Kupferkabel 3×1,5mm²"
+                    className="min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-1.5 py-1 text-sm text-card-foreground outline-none focus:border-border focus:bg-card"
+                  />
                   <button
                     type="button"
-                    onClick={() => updateQty(m.id, -1)}
-                    className="flex h-7 w-7 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:text-foreground"
-                    aria-label="Menge verringern"
+                    onClick={() => removeMaterial(m.id)}
+                    aria-label="Material entfernen"
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
                   >
-                    <Minus className="h-3.5 w-3.5" aria-hidden="true" />
+                    <X className="h-3.5 w-3.5" aria-hidden="true" />
                   </button>
-                  <span className="w-12 text-center font-mono text-sm text-card-foreground">
-                    {m.qty} {m.unit}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => updateQty(m.id, 1)}
-                    className="flex h-7 w-7 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:text-foreground"
-                    aria-label="Menge erhöhen"
+                </div>
+                <div className="mt-1.5 flex items-center gap-1.5">
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    inputMode="decimal"
+                    value={m.qty}
+                    onChange={(e) => updateMaterial(m.id, { qty: Math.max(0, parseFloat(e.target.value) || 0) })}
+                    className="w-20 rounded-md border border-border bg-card px-2 py-1 text-right font-mono text-sm text-card-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                    aria-label="Menge"
+                  />
+                  <select
+                    value={m.unit}
+                    onChange={(e) => updateMaterial(m.id, { unit: e.target.value })}
+                    className="rounded-md border border-border bg-card px-2 py-1 text-sm text-card-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                    aria-label="Einheit"
                   >
-                    <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-                  </button>
+                    {MATERIAL_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+                  </select>
                 </div>
               </li>
             ))}
