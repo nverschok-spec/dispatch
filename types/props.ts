@@ -373,6 +373,30 @@ export interface TechnicianAppProps {
   summary: TechnicianDaySummary
   route: Stop[]
   onOpenStop?: (stop: Stop) => void
+  onOpenAbsences?: () => void
+}
+
+/* ----------------------------------------------------------------------- */
+/* components/technician/absence-modal.tsx                                 */
+/* ----------------------------------------------------------------------- */
+
+export type AbsenceType = "urlaub" | "krank"
+export type AbsenceStatus = "requested" | "approved" | "rejected"
+
+export interface AbsenceItem {
+  id: string
+  type: AbsenceType
+  startDate: string // YYYY-MM-DD
+  endDate: string // YYYY-MM-DD
+  status: AbsenceStatus
+  note?: string
+}
+
+export interface AbsenceModalProps {
+  open: boolean
+  absences: AbsenceItem[]
+  onClose: () => void
+  onSubmit: (data: { type: AbsenceType; startDate: string; endDate: string; note?: string }) => void | Promise<void>
 }
 
 export interface Material {

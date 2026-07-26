@@ -103,12 +103,20 @@ function appointmentToVisit(a: AppointmentDoc): Visit {
   };
 }
 
-export function doctorToTechnician(d: Doctor, todaysAppointments: AppointmentDoc[]): Technician {
+// Approved Abwesenheiten (see Settings "Anträge") override the live status
+// regardless of the manual Aktiv/Urlaub/Krank toggle — a technician on
+// approved leave for the day being viewed shouldn't read as "verfügbar".
+function isApprovedAbsenceOn(d: Doctor, dateStr: string): boolean {
+  return (d.absences ?? []).some((a) => a.status === 'approved' && a.startDate <= dateStr && dateStr <= a.endDate);
+}
+
+export function doctorToTechnician(d: Doctor, todaysAppointments: AppointmentDoc[], referenceDate: Date = new Date()): Technician {
   const visits = todaysAppointments
     .filter((a) => a.doctorId === d.id)
     .map(appointmentToVisit);
+  const dateStr = referenceDate.toISOString().slice(0, 10);
   const status: Technician['status'] =
-    d.status !== 'active' ? 'pause' :
+    d.status !== 'active' || isApprovedAbsenceOn(d, dateStr) ? 'pause' :
     todaysAppointments.some((a) => a.doctorId === d.id && a.status === 'en_route') ? 'unterwegs' :
     todaysAppointments.some((a) => a.doctorId === d.id && a.status === 'behandlung') ? 'vor-ort' :
     'verfügbar';

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { Timestamp } from 'firebase/firestore';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { getPractice, updatePracticeInfo, updateDoctors, updateBlacklist, getAllInvoices } from '@/lib/firebase/firestore';
 import { DOC_PALETTE, normalizeDoctor, type Doctor, type DoctorStatus, type PracticeDoc } from '@/lib/types';
@@ -279,6 +280,49 @@ export default function EinstellungenPage() {
     }
   }
 
+  // ── Anträge (Urlaub/Krank, vom Mitarbeiter über die Techniker-App gemeldet) ──
+  const pendingAbsences = useMemo(() => {
+    if (!practice) return [];
+    return practice.doctors.flatMap((d) =>
+      (d.absences ?? [])
+        .filter((a) => a.status === 'requested')
+        .map((a) => ({ doctorId: d.id, doctorName: d.name, absence: a })),
+    );
+  }, [practice]);
+
+  async function reviewAbsence(doctorId: string, absenceId: string, status: 'approved' | 'rejected') {
+    if (!practice) return;
+    const updated = practice.doctors.map((d) => {
+      if (d.id !== doctorId) return d;
+      return {
+        ...d,
+        absences: (d.absences ?? []).map((a) =>
+          a.id === absenceId ? { ...a, status, reviewedAt: Timestamp.now() } : a,
+        ),
+      };
+    });
+    setSaving('mitarbeiter');
+    try {
+      await updateDoctors(practice.id, updated);
+      setPractice((p) => (p ? { ...p, doctors: updated } : p));
+      showToast(status === 'approved' ? 'Genehmigt' : 'Abgelehnt');
+    } catch {
+      showToast('Fehler beim Speichern');
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  function currentAbsence(d: Doctor): { label: string } | null {
+    const today = new Date().toISOString().slice(0, 10);
+    const active = (d.absences ?? [])
+      .filter((a) => a.status === 'approved' && a.endDate >= today)
+      .sort((a, b) => a.startDate.localeCompare(b.startDate))[0];
+    if (!active) return null;
+    const label = active.type === 'urlaub' ? 'Urlaub' : 'Krank';
+    return { label: `${label}: ${active.startDate} – ${active.endDate}` };
+  }
+
   // ── Kundensperre (Blacklist) ──────────────────────────────────────
   const [blockEmail, setBlockEmail] = useState('');
   const blacklist = useMemo(() => practice?.blacklist ?? [], [practice]);
@@ -446,6 +490,40 @@ export default function EinstellungenPage() {
 
         {tab === 'mitarbeiter' && (
           <div className="space-y-4">
+            {pendingAbsences.length > 0 && (
+              <div className="space-y-2 rounded-2xl border border-warning/30 bg-warning/10 p-4">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-warning">
+                  Offene Anträge ({pendingAbsences.length})
+                </h3>
+                <ul className="space-y-1.5">
+                  {pendingAbsences.map(({ doctorId, doctorName, absence }) => (
+                    <li key={absence.id} className="flex items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2">
+                      <span className="text-sm text-card-foreground">
+                        {doctorName} · {absence.type === 'urlaub' ? 'Urlaub' : 'Krank'} · {absence.startDate} – {absence.endDate}
+                        {absence.note && <span className="text-muted-foreground"> · &bdquo;{absence.note}&ldquo;</span>}
+                      </span>
+                      <div className="flex shrink-0 gap-1.5">
+                        <button
+                          onClick={() => reviewAbsence(doctorId, absence.id, 'approved')}
+                          disabled={saving === 'mitarbeiter'}
+                          className="rounded-md border border-success/30 bg-success/10 px-2 py-1 text-xs font-medium text-success transition-colors hover:bg-success/20"
+                        >
+                          Genehmigen
+                        </button>
+                        <button
+                          onClick={() => reviewAbsence(doctorId, absence.id, 'rejected')}
+                          disabled={saving === 'mitarbeiter'}
+                          className="rounded-md border border-destructive/30 bg-destructive/10 px-2 py-1 text-xs font-medium text-destructive transition-colors hover:bg-destructive/20"
+                        >
+                          Ablehnen
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
               {practice.doctors.length === 0 ? (
                 <div className="py-12 text-center text-sm text-muted-foreground">Noch keine Mitarbeiter</div>
@@ -466,6 +544,9 @@ export default function EinstellungenPage() {
                           <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
                             {[d.email, d.phone].filter(Boolean).join(' · ')}
                           </p>
+                        )}
+                        {currentAbsence(d) && (
+                          <p className="mt-0.5 truncate text-[11px] font-medium text-warning">{currentAbsence(d)!.label}</p>
                         )}
                       </div>
                       <button

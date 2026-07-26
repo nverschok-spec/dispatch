@@ -17,6 +17,7 @@ import {
   Send,
   CircleDot,
   X,
+  CalendarOff,
   type LucideIcon,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -33,7 +34,7 @@ const kindStyles: Record<Stop["kind"], string> = {
   Installation: "bg-warning/15 text-warning",
 }
 
-export function TechnicianApp({ technicianInitials, dateLabel, summary, route, onOpenStop }: TechnicianAppProps) {
+export function TechnicianApp({ technicianInitials, dateLabel, summary, route, onOpenStop, onOpenAbsences }: TechnicianAppProps) {
   const nextStop = route.find((s) => s.status === "current") ?? null
 
   return (
@@ -50,9 +51,19 @@ export function TechnicianApp({ technicianInitials, dateLabel, summary, route, o
             </p>
           </div>
         </div>
-        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-muted text-xs font-semibold text-foreground">
-          {technicianInitials}
-        </span>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onOpenAbsences}
+            aria-label="Urlaub / Krank melden"
+            title="Urlaub / Krank melden"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <CalendarOff className="h-4 w-4" aria-hidden="true" />
+          </button>
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-muted text-xs font-semibold text-foreground">
+            {technicianInitials}
+          </span>
+        </div>
       </header>
 
       {/* Day progress summary */}

@@ -3,10 +3,20 @@
 import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { TechnicianApp, JobCompletion } from "@/components/technician/technician-app"
+import { AbsenceModal } from "@/components/technician/absence-modal"
 import { useAuth } from "@/components/providers/AuthProvider"
 import { appointmentsToRoute, computeTechnicianDaySummary } from "@/lib/adapters"
 import type { AppointmentDoc } from "@/lib/types"
-import type { Stop, JobCompletionResult } from "@/types/props"
+import type { AbsenceItem, Stop, JobCompletionResult } from "@/types/props"
+
+interface RawAbsence {
+  id: string
+  type: AbsenceItem["type"]
+  startDate: string
+  endDate: string
+  status: AbsenceItem["status"]
+  note?: string
+}
 
 // The API returns Timestamps as ISO strings (see app/api/techniker/jobs) —
 // this re-wraps them with the .toDate()/.toMillis() shape lib/adapters.ts
@@ -31,9 +41,10 @@ export default function TechnikerPage() {
   const { user, claims, loading: authLoading } = useAuth()
 
   const [appointments, setAppointments] = useState<AppointmentDoc[]>([])
-  const [doctor, setDoctor] = useState<{ name: string } | null>(null)
+  const [doctor, setDoctor] = useState<{ name: string; absences?: RawAbsence[] } | null>(null)
   const [loadingJobs, setLoadingJobs] = useState(true)
   const [activeStop, setActiveStop] = useState<Stop | null>(null)
+  const [showAbsences, setShowAbsences] = useState(false)
 
   useEffect(() => {
     if (!authLoading && (!user || claims?.role !== "technician")) {
@@ -82,6 +93,11 @@ export default function TechnikerPage() {
     }
   }
 
+  async function handleAbsenceSubmit(data: { type: AbsenceItem["type"]; startDate: string; endDate: string; note?: string }) {
+    await callTechnikerApi("/api/techniker/absence-request", data)
+    await loadJobs()
+  }
+
   if (authLoading || (loadingJobs && appointments.length === 0)) {
     return <div className="flex h-dvh items-center justify-center bg-background text-sm text-muted-foreground">Lädt…</div>
   }
@@ -111,12 +127,21 @@ export default function TechnikerPage() {
     : "MA"
 
   return (
-    <TechnicianApp
-      technicianInitials={initials}
-      dateLabel={new Date().toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "long" })}
-      summary={summary}
-      route={route}
-      onOpenStop={setActiveStop}
-    />
+    <>
+      <TechnicianApp
+        technicianInitials={initials}
+        dateLabel={new Date().toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "long" })}
+        summary={summary}
+        route={route}
+        onOpenStop={setActiveStop}
+        onOpenAbsences={() => setShowAbsences(true)}
+      />
+      <AbsenceModal
+        open={showAbsences}
+        absences={(doctor?.absences ?? []).map((a) => ({ id: a.id, type: a.type, startDate: a.startDate, endDate: a.endDate, status: a.status, note: a.note }))}
+        onClose={() => setShowAbsences(false)}
+        onSubmit={handleAbsenceSubmit}
+      />
+    </>
   )
 }

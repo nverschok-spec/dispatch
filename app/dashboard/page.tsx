@@ -99,8 +99,8 @@ export default function DispatcherPage() {
   )
 
   const timelineTechnicians = useMemo(
-    () => (practice?.doctors ?? []).filter((d) => d.isActive).map((d) => doctorToTechnician(d, dispatchedOnSelectedDate)),
-    [practice?.doctors, dispatchedOnSelectedDate],
+    () => (practice?.doctors ?? []).filter((d) => d.isActive).map((d) => doctorToTechnician(d, dispatchedOnSelectedDate, selectedDate)),
+    [practice?.doctors, dispatchedOnSelectedDate, selectedDate],
   )
 
   const orderCategories: BookingCategory[] = useMemo(() => {

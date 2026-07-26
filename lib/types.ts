@@ -77,7 +77,23 @@ export interface Doctor {
   phone?: string;
   bio?: string;
   avatarUrl?: string;
-  unavailableDates: string[];
+  absences: Absence[];
+}
+
+// ─── ABWESENHEITEN (Urlaub/Krank — beantragt vom Mitarbeiter, vom Betrieb genehmigt) ──
+
+export type AbsenceType = 'urlaub' | 'krank';
+export type AbsenceStatus = 'requested' | 'approved' | 'rejected';
+
+export interface Absence {
+  id: string;
+  type: AbsenceType;
+  startDate: string; // YYYY-MM-DD, inclusive
+  endDate: string;   // YYYY-MM-DD, inclusive
+  status: AbsenceStatus;
+  note?: string;
+  requestedAt: Timestamp;
+  reviewedAt?: Timestamp | null;
 }
 
 // ─── SERVICE (Gewerk-Katalog-Eintrag, falls im Admin-Panel gepflegt) ──────────
@@ -336,6 +352,6 @@ export function normalizeDoctor(raw: Record<string, unknown>): Doctor {
     phone: raw.phone as string | undefined,
     bio: raw.bio as string | undefined,
     avatarUrl: raw.avatarUrl as string | undefined,
-    unavailableDates: (raw.unavailableDates as string[]) ?? [],
+    absences: (raw.absences as Absence[]) ?? [],
   };
 }
