@@ -46,6 +46,9 @@ export function OrderDetailModal({
   const [assigning, setAssigning] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [generated, setGenerated] = useState(false)
+  const [generating, setGenerating] = useState(false)
+  const [generateError, setGenerateError] = useState("")
+  const [assignError, setAssignError] = useState("")
 
   useEffect(() => {
     if (order) {
@@ -53,6 +56,8 @@ export function OrderDetailModal({
       setArrivalValue(defaultArrivalValue())
       setDropdownOpen(false)
       setGenerated(false)
+      setGenerateError("")
+      setAssignError("")
     }
   }, [order])
 
@@ -283,8 +288,11 @@ export function OrderDetailModal({
                 onClick={async () => {
                   if (!assignee || !arrivalValue) return
                   setAssigning(true)
+                  setAssignError("")
                   try {
                     await onAssignTechnician?.(order.id, assignee, new Date(arrivalValue))
+                  } catch (err) {
+                    setAssignError(err instanceof Error ? err.message : "Zuweisung fehlgeschlagen.")
                   } finally {
                     setAssigning(false)
                   }
@@ -292,6 +300,7 @@ export function OrderDetailModal({
               >
                 {assigning ? "Wird zugewiesen…" : "Techniker & Zeit zuweisen"}
               </Button>
+              {assignError && <p className="mt-1.5 text-xs text-destructive">{assignError}</p>}
             </section>
 
             {/* Materials reported by the technician on-site */}
@@ -366,23 +375,30 @@ export function OrderDetailModal({
         {/* Footer */}
         <footer className="flex flex-col gap-2 border-t border-border bg-card px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-muted-foreground">
-            {selectedTech
-              ? `Wird ${selectedTech.name} zugewiesen`
-              : "Noch kein Techniker zugewiesen"}
+            {generateError || (selectedTech ? `Wird ${selectedTech.name} zugewiesen` : "Noch kein Techniker zugewiesen")}
           </p>
           <div className="flex gap-2">
             <Button variant="outline" onClick={onClose}>
-              Abbrechen
+              {generated ? "Schließen" : "Abbrechen"}
             </Button>
             <Button
+              disabled={generating || generated}
               onClick={async () => {
-                await onGenerateInvoice?.(order.id)
-                setGenerated(true)
+                setGenerating(true)
+                setGenerateError("")
+                try {
+                  await onGenerateInvoice?.(order.id)
+                  setGenerated(true)
+                } catch (err) {
+                  setGenerateError(err instanceof Error ? err.message : "Rechnung konnte nicht erstellt werden.")
+                } finally {
+                  setGenerating(false)
+                }
               }}
               className="gap-1.5"
             >
               <FileText className="h-4 w-4" aria-hidden="true" />
-              {generated ? "Rechnung erstellt ✓" : "ZUGFeRD PDF Rechnung generieren"}
+              {generated ? "Rechnung erstellt ✓" : generating ? "Wird erstellt…" : "ZUGFeRD PDF Rechnung generieren"}
             </Button>
           </div>
         </footer>

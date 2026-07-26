@@ -86,12 +86,20 @@ export default function DispatcherPage() {
       ...(order.materialCost > 0 ? [{ type: "material", description: "Material", quantity: 1, unitPriceCents: Math.round(order.materialCost * 100) }] : []),
       ...(order.travelCost > 0 ? [{ type: "travel", description: "Fahrtkosten (Anfahrtspauschale)", quantity: 1, unitPriceCents: Math.round(order.travelCost * 100) }] : []),
     ]
-    await fetch("/api/invoices", {
+    const res = await fetch("/api/invoices", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
       body: JSON.stringify({ appointmentId: orderId, lineItems }),
     })
-    setSelected(null)
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      const messages: Record<string, string> = {
+        NOT_COMPLETED: "Auftrag ist noch nicht abgeschlossen — Techniker muss den Job zuerst beenden.",
+        ALREADY_INVOICED: "Für diesen Auftrag existiert bereits eine Rechnung.",
+        FORBIDDEN: "Keine Berechtigung für diesen Auftrag.",
+      }
+      throw new Error(messages[data.error] ?? "Rechnung konnte nicht erstellt werden.")
+    }
   }
 
   async function handleMarkInvoicePaid(invoiceId: string) {

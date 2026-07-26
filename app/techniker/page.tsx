@@ -66,11 +66,20 @@ export default function TechnikerPage() {
   async function callTechnikerApi(path: string, body: object) {
     if (!user) return
     const idToken = await user.getIdToken()
-    await fetch(path, {
+    const res = await fetch(path, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
       body: JSON.stringify(body),
     })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      const messages: Record<string, string> = {
+        SIGNATURE_REQUIRED: "Unterschrift fehlt.",
+        FORBIDDEN: "Dieser Auftrag gehört nicht zu Ihrer Tour.",
+        NOT_FOUND: "Auftrag nicht gefunden.",
+      }
+      throw new Error(messages[data.error] ?? "Aktion fehlgeschlagen — bitte erneut versuchen.")
+    }
   }
 
   if (authLoading || (loadingJobs && appointments.length === 0)) {

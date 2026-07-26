@@ -159,12 +159,17 @@ export function JobCompletion({ stop, initialMaterials, initialDurationMinutes, 
   const [signed, setSigned] = useState(false)
   const [done, setDone] = useState(false)
   const [completing, setCompleting] = useState(false)
+  const [routeError, setRouteError] = useState("")
+  const [completeError, setCompleteError] = useState("")
 
   async function handleStartRoute() {
     setStartingRoute(true)
+    setRouteError("")
     try {
       await onStartRoute?.()
       setEnRoute(true)
+    } catch (err) {
+      setRouteError(err instanceof Error ? err.message : "Fehlgeschlagen — bitte erneut versuchen.")
     } finally {
       setStartingRoute(false)
     }
@@ -182,9 +187,12 @@ export function JobCompletion({ stop, initialMaterials, initialDurationMinutes, 
 
   async function handleComplete() {
     setCompleting(true)
+    setCompleteError("")
     try {
       await onComplete({ stopId: stop.id, materials, durationMinutes: duration, signed })
       setDone(true)
+    } catch (err) {
+      setCompleteError(err instanceof Error ? err.message : "Fehlgeschlagen — bitte erneut versuchen.")
     } finally {
       setCompleting(false)
     }
@@ -268,6 +276,7 @@ export function JobCompletion({ stop, initialMaterials, initialDurationMinutes, 
               </>
             )}
           </Button>
+          {routeError && <p className="mt-2 text-xs text-destructive">{routeError}</p>}
         </div>
 
         {/* Materials */}
@@ -371,6 +380,9 @@ export function JobCompletion({ stop, initialMaterials, initialDurationMinutes, 
           <p className="mt-2 text-center text-[11px] text-muted-foreground">
             Kundenunterschrift erforderlich zum Abschließen.
           </p>
+        )}
+        {completeError && (
+          <p className="mt-2 text-center text-[11px] text-destructive">{completeError}</p>
         )}
       </div>
     </div>
