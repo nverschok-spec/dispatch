@@ -76,6 +76,7 @@ export function appointmentToOrder(
     travelCost: (rates?.travelCostCents ?? DEFAULT_TRAVEL_CENTS) / 100,
     materialCost: 0,
     materialsUsed: a.materials?.map((m) => ({ name: m.name, qty: m.qty, unit: m.unit })),
+    quoteStatus: a.quote?.status,
   };
 }
 

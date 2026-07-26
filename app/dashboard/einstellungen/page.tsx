@@ -5,11 +5,11 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Timestamp } from 'firebase/firestore';
 import { useAuth } from '@/components/providers/AuthProvider';
-import { getPractice, updatePracticeInfo, updateDoctors, updateBlacklist, getAllInvoices } from '@/lib/firebase/firestore';
-import { DOC_PALETTE, normalizeDoctor, type Doctor, type DoctorStatus, type PracticeDoc } from '@/lib/types';
+import { getPractice, updatePracticeInfo, updateDoctors, updateBlacklist, getAllInvoices, getAppointmentsForPractice } from '@/lib/firebase/firestore';
+import { DOC_PALETTE, KANBAN_LABELS, normalizeDoctor, type AppointmentDoc, type Doctor, type DoctorStatus, type PracticeDoc } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 
-type Tab = 'betrieb' | 'mitarbeiter' | 'kundensperre';
+type Tab = 'betrieb' | 'mitarbeiter' | 'kundensperre' | 'kunden';
 
 const STATUS_LABEL: Record<DoctorStatus, string> = {
   active: 'Aktiv',
@@ -51,6 +51,7 @@ export default function EinstellungenPage() {
   const [tab, setTab] = useState<Tab>('mitarbeiter');
   const [saving, setSaving] = useState<string | null>(null);
   const [toast, setToast] = useState('');
+  const [appointments, setAppointments] = useState<AppointmentDoc[] | null>(null);
 
   useEffect(() => {
     if (!authLoading && (!user || claims?.role !== 'praxisAdmin')) {
@@ -64,6 +65,43 @@ export default function EinstellungenPage() {
     if (!claims?.praxisId) return;
     getPractice(claims.praxisId).then(setPractice).catch(() => setLoadError(true));
   }, [claims?.praxisId]);
+
+  // Fetched lazily (not on every Settings visit) — only once the Kunden tab
+  // is actually opened.
+  useEffect(() => {
+    if (tab !== 'kunden' || !claims?.praxisId || appointments !== null) return;
+    getAppointmentsForPractice(claims.praxisId).then(setAppointments).catch(() => setAppointments([]));
+  }, [tab, claims?.praxisId, appointments]);
+
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [expandedCustomer, setExpandedCustomer] = useState<string | null>(null);
+
+  const customers = useMemo(() => {
+    if (!appointments) return [];
+    const byEmail = new Map<string, {
+      email: string; name: string; phone: string; total: number; lastVisit: Date; appointments: AppointmentDoc[];
+    }>();
+    for (const a of appointments) {
+      if (a.deleted) continue;
+      const email = a.patientEmail.toLowerCase();
+      const dt = a.dateTime?.toDate?.() ?? new Date(0);
+      const existing = byEmail.get(email);
+      if (!existing) {
+        byEmail.set(email, { email, name: a.patientName, phone: a.patientPhone ?? '', total: 1, lastVisit: dt, appointments: [a] });
+      } else {
+        existing.total += 1;
+        existing.appointments.push(a);
+        if (dt > existing.lastVisit) { existing.lastVisit = dt; existing.name = a.patientName; existing.phone = a.patientPhone ?? existing.phone; }
+      }
+    }
+    return Array.from(byEmail.values()).sort((a, b) => b.lastVisit.getTime() - a.lastVisit.getTime());
+  }, [appointments]);
+
+  const filteredCustomers = useMemo(() => {
+    const q = customerSearch.trim().toLowerCase();
+    if (!q) return customers;
+    return customers.filter((c) => c.name.toLowerCase().includes(q) || c.email.includes(q) || c.phone.includes(q));
+  }, [customers, customerSearch]);
 
   function showToast(msg: string) {
     setToast(msg);
@@ -385,6 +423,7 @@ export default function EinstellungenPage() {
           {([
             ['betrieb', 'Betrieb'],
             ['mitarbeiter', `Mitarbeiter (${practice.doctors.length})`],
+            ['kunden', 'Kunden'],
             ['kundensperre', `Kundensperre${blacklist.length ? ` (${blacklist.length})` : ''}`],
           ] as [Tab, string][]).map(([t, label]) => (
             <button
@@ -636,6 +675,58 @@ export default function EinstellungenPage() {
                 + Mitarbeiter hinzufügen
               </button>
             )}
+          </div>
+        )}
+
+        {tab === 'kunden' && (
+          <div className="space-y-4">
+            <input
+              value={customerSearch}
+              onChange={(e) => setCustomerSearch(e.target.value)}
+              placeholder="Name, E-Mail, Telefon…"
+              className={inputCls}
+            />
+            <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+              {appointments === null ? (
+                <div className="py-12 text-center text-sm text-muted-foreground">Lädt…</div>
+              ) : filteredCustomers.length === 0 ? (
+                <div className="py-12 text-center text-sm text-muted-foreground">
+                  {customerSearch ? 'Keine Treffer' : 'Noch keine Kunden'}
+                </div>
+              ) : (
+                <ul className="divide-y divide-border">
+                  {filteredCustomers.map((c) => (
+                    <li key={c.email}>
+                      <button
+                        onClick={() => setExpandedCustomer((cur) => (cur === c.email ? null : c.email))}
+                        className="flex w-full items-center gap-3 px-5 py-3.5 text-left transition-colors hover:bg-muted/40"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-card-foreground">{c.name}</p>
+                          <p className="truncate text-xs text-muted-foreground">{[c.email, c.phone].filter(Boolean).join(' · ')}</p>
+                        </div>
+                        <span className="shrink-0 text-xs text-muted-foreground">{c.total} Auftrag{c.total !== 1 ? 'e' : ''}</span>
+                        <span className="shrink-0 font-mono text-xs text-muted-foreground">{c.lastVisit.toLocaleDateString('de-DE')}</span>
+                      </button>
+                      {expandedCustomer === c.email && (
+                        <ul className="space-y-1 bg-muted/30 px-5 py-3">
+                          {c.appointments
+                            .sort((a, b) => (b.dateTime?.toDate?.().getTime() ?? 0) - (a.dateTime?.toDate?.().getTime() ?? 0))
+                            .map((a) => (
+                              <li key={a.id} className="flex items-center justify-between text-xs">
+                                <span className="truncate text-card-foreground">{a.symptomNote ?? 'Auftrag'}</span>
+                                <span className="shrink-0 text-muted-foreground">
+                                  {a.dateTime?.toDate?.().toLocaleDateString('de-DE')} · {KANBAN_LABELS[a.status] ?? a.status}
+                                </span>
+                              </li>
+                            ))}
+                        </ul>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
         )}
 

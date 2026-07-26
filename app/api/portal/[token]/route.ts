@@ -42,6 +42,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
     customerName: appt.patientName,
     mitarbeiter:  doctor ? { name: doctor.name, spec: doctor.spec, color: doctor.color, avatarUrl: doctor.avatarUrl ?? null } : null,
     invoiceId:    appt.invoiceId ?? null, // Phase 4 wires a real ZUGFeRD PDF behind this
+    quote: appt.quote ? {
+      lineItems: appt.quote.lineItems,
+      netTotalCents: appt.quote.netTotalCents,
+      vatAmountCents: appt.quote.vatAmountCents,
+      grossTotalCents: appt.quote.grossTotalCents,
+      status: appt.quote.status,
+    } : null,
     praxis: {
       name:  practice?.name ?? '',
       phone: practice?.phone ?? '',

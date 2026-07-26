@@ -15,6 +15,9 @@ import {
   Download,
   Star,
   ShieldCheck,
+  ClipboardList,
+  Check,
+  X,
   type LucideIcon,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -34,12 +37,15 @@ export function CustomerPortal({
   technician,
   steps,
   invoice,
+  quote,
   mapImageUrl = "/map-berlin.png",
   onCall,
   onMessage,
   onDownloadInvoice,
+  onRespondQuote,
 }: CustomerPortalProps) {
   const [eta, setEta] = useState(etaMinutes)
+  const [respondingQuote, setRespondingQuote] = useState(false)
 
   // Simulated countdown for the demo map marker — there is no live GPS feed
   // yet, so this only runs when a real etaMinutes was actually passed in
@@ -125,6 +131,56 @@ export function CustomerPortal({
         ) : (
           <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
             <p className="text-sm font-semibold text-card-foreground">{statusHeadline}</p>
+          </div>
+        )}
+
+        {/* Kostenvoranschlag — only appears once the Betrieb has sent one */}
+        {quote && (
+          <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+            <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-card-foreground">
+              <ClipboardList className="h-4 w-4 text-primary" aria-hidden="true" />
+              Kostenvoranschlag
+            </h2>
+            <ul className="space-y-1.5 text-sm">
+              {quote.lineItems.map((li, i) => (
+                <li key={i} className="flex items-center justify-between text-card-foreground">
+                  <span>{li.description}{li.quantity !== 1 ? ` × ${li.quantity}` : ""}</span>
+                  <span className="font-mono">{li.netAmount}</span>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-2 flex items-center justify-between border-t border-border pt-2 text-sm font-semibold text-card-foreground">
+              <span>Gesamt (brutto)</span>
+              <span className="font-mono">{quote.grossTotal}</span>
+            </div>
+
+            {quote.status === "sent" && (
+              <div className="mt-3 grid grid-cols-2 gap-2.5">
+                <Button
+                  variant="outline"
+                  className="gap-1.5 bg-transparent"
+                  disabled={respondingQuote}
+                  onClick={async () => { setRespondingQuote(true); try { await onRespondQuote?.("rejected") } finally { setRespondingQuote(false) } }}
+                >
+                  <X className="h-4 w-4" aria-hidden="true" />
+                  Ablehnen
+                </Button>
+                <Button
+                  className="gap-1.5"
+                  disabled={respondingQuote}
+                  onClick={async () => { setRespondingQuote(true); try { await onRespondQuote?.("accepted") } finally { setRespondingQuote(false) } }}
+                >
+                  <Check className="h-4 w-4" aria-hidden="true" />
+                  Annehmen
+                </Button>
+              </div>
+            )}
+            {quote.status === "accepted" && (
+              <p className="mt-3 rounded-lg bg-success/10 px-3 py-2 text-center text-xs font-medium text-success">Angenommen</p>
+            )}
+            {quote.status === "rejected" && (
+              <p className="mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-center text-xs font-medium text-destructive">Abgelehnt</p>
+            )}
           </div>
         )}
 

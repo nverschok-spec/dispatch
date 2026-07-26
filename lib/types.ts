@@ -273,6 +273,26 @@ export interface AppointmentDoc {
   actualDurationMinutes?: number;
   signedByCustomer?: boolean;
   completedAt?: Timestamp | null;
+
+  // Kostenvoranschlag — optional, sent before the job for non-urgent work so
+  // the customer signs off on price before a technician is dispatched. Not a
+  // GoBD-relevant document (no numbering/immutability requirement, unlike
+  // InvoiceDoc), so it lives inline on the appointment instead of its own
+  // collection.
+  quote?: Quote;
+}
+
+export type QuoteStatus = 'sent' | 'accepted' | 'rejected';
+
+export interface Quote {
+  lineItems: InvoiceLineItem[];
+  netTotalCents: number;
+  vatAmountCents: number;
+  grossTotalCents: number;
+  status: QuoteStatus;
+  createdAt: Timestamp;
+  createdBy: string;
+  respondedAt?: Timestamp | null;
 }
 
 export interface JobMaterial {

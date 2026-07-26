@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button"
 import { getPriceBreakdown } from "@/lib/dispatcher-data"
 import { resolveIcon, categoryIconMap } from "@/lib/icon-map"
 import { cn } from "@/lib/utils"
-import type { OrderDetailModalProps } from "@/types/props"
+import type { Order, OrderDetailModalProps } from "@/types/props"
 
 const eur = (n: number) =>
   new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n)
@@ -40,6 +40,7 @@ export function OrderDetailModal({
   technicians,
   onAssignTechnician,
   onGenerateInvoice,
+  onSendQuote,
 }: OrderDetailModalProps) {
   const [assignee, setAssignee] = useState<string>("")
   const [arrivalValue, setArrivalValue] = useState<string>(defaultArrivalValue())
@@ -49,6 +50,9 @@ export function OrderDetailModal({
   const [generating, setGenerating] = useState(false)
   const [generateError, setGenerateError] = useState("")
   const [assignError, setAssignError] = useState("")
+  const [sendingQuote, setSendingQuote] = useState(false)
+  const [quoteError, setQuoteError] = useState("")
+  const [quoteStatusLocal, setQuoteStatusLocal] = useState<Order["quoteStatus"]>(undefined)
 
   useEffect(() => {
     if (order) {
@@ -58,6 +62,9 @@ export function OrderDetailModal({
       setGenerated(false)
       setGenerateError("")
       setAssignError("")
+      setSendingQuote(false)
+      setQuoteError("")
+      setQuoteStatusLocal(order.quoteStatus)
     }
   }, [order])
 
@@ -368,6 +375,54 @@ export function OrderDetailModal({
                   ausgewiesen.
                 </p>
               </div>
+            </section>
+
+            {/* Kostenvoranschlag */}
+            <section>
+              <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <FileText className="h-3.5 w-3.5" aria-hidden="true" />
+                Kostenvoranschlag
+              </h3>
+              {quoteStatusLocal ? (
+                <div
+                  className={cn(
+                    "rounded-lg border p-3 text-sm",
+                    quoteStatusLocal === "accepted" && "border-success/30 bg-success/10 text-success",
+                    quoteStatusLocal === "rejected" && "border-destructive/30 bg-destructive/10 text-destructive",
+                    quoteStatusLocal === "sent" && "border-warning/30 bg-warning/10 text-warning",
+                  )}
+                >
+                  {quoteStatusLocal === "accepted" && "Vom Kunden angenommen — Auftrag kann ausgeführt werden."}
+                  {quoteStatusLocal === "rejected" && "Vom Kunden abgelehnt."}
+                  {quoteStatusLocal === "sent" && "Gesendet — wartet auf Antwort des Kunden."}
+                </div>
+              ) : (
+                <>
+                  <p className="mb-2 text-xs text-muted-foreground">
+                    Sendet die obige Preiskalkulation als Kostenvoranschlag ins Kundenportal — der Kunde kann annehmen oder ablehnen, bevor ein Techniker losfährt.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={sendingQuote}
+                    onClick={async () => {
+                      setSendingQuote(true)
+                      setQuoteError("")
+                      try {
+                        await onSendQuote?.(order.id)
+                        setQuoteStatusLocal("sent")
+                      } catch (err) {
+                        setQuoteError(err instanceof Error ? err.message : "Kostenvoranschlag konnte nicht gesendet werden.")
+                      } finally {
+                        setSendingQuote(false)
+                      }
+                    }}
+                  >
+                    {sendingQuote ? "Wird gesendet…" : "Kostenvoranschlag senden"}
+                  </Button>
+                  {quoteError && <p className="mt-1.5 text-xs text-destructive">{quoteError}</p>}
+                </>
+              )}
             </section>
           </div>
         </div>

@@ -10,7 +10,7 @@ import { OrderDetailModal } from "@/components/dispatcher/order-detail-modal"
 import { CreateOrderModal } from "@/components/dispatcher/create-order-modal"
 import { useAuth } from "@/components/providers/AuthProvider"
 import { logout } from "@/lib/firebase/auth"
-import { getPractice, subscribeToAppointments, dispatchAppointment, getOpenInvoices } from "@/lib/firebase/firestore"
+import { getPractice, subscribeToAppointments, dispatchAppointment, getOpenInvoices, createQuote } from "@/lib/firebase/firestore"
 import { appointmentToOrder, doctorToTechnician, computeDailyProgress, invoiceToSummary } from "@/lib/adapters"
 import { cn } from "@/lib/utils"
 import { GEWERKE, HANDWERK_CATALOG, type Gewerk } from "@/lib/data/handwerkCatalog"
@@ -144,15 +144,26 @@ export default function DispatcherPage() {
     setSelected(null)
   }
 
+  function buildLineItems(order: Order) {
+    return [
+      { type: "labor" as const, description: "Arbeitsleistung", quantity: order.laborHours, unitPriceCents: Math.round(order.hourlyRate * 100) },
+      ...(order.materialCost > 0 ? [{ type: "material" as const, description: "Material", quantity: 1, unitPriceCents: Math.round(order.materialCost * 100) }] : []),
+      ...(order.travelCost > 0 ? [{ type: "travel" as const, description: "Fahrtkosten (Anfahrtspauschale)", quantity: 1, unitPriceCents: Math.round(order.travelCost * 100) }] : []),
+    ]
+  }
+
+  async function handleSendQuote(orderId: string) {
+    const order = unassignedOrders.find((o) => o.id === orderId) ?? selected
+    if (!order || !user) return
+    const lineItems = buildLineItems(order).map((li) => ({ ...li, netAmountCents: Math.round(li.quantity * li.unitPriceCents) }))
+    await createQuote(orderId, lineItems, user.uid)
+  }
+
   async function handleGenerateInvoice(orderId: string) {
     const order = unassignedOrders.find((o) => o.id === orderId) ?? selected
     if (!order || !user) return
     const idToken = await user.getIdToken()
-    const lineItems = [
-      { type: "labor", description: "Arbeitsleistung", quantity: order.laborHours, unitPriceCents: Math.round(order.hourlyRate * 100) },
-      ...(order.materialCost > 0 ? [{ type: "material", description: "Material", quantity: 1, unitPriceCents: Math.round(order.materialCost * 100) }] : []),
-      ...(order.travelCost > 0 ? [{ type: "travel", description: "Fahrtkosten (Anfahrtspauschale)", quantity: 1, unitPriceCents: Math.round(order.travelCost * 100) }] : []),
-    ]
+    const lineItems = buildLineItems(order)
     const res = await fetch("/api/invoices", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
@@ -253,6 +264,7 @@ export default function DispatcherPage() {
         technicians={technicians}
         onAssignTechnician={handleAssignTechnician}
         onGenerateInvoice={handleGenerateInvoice}
+        onSendQuote={handleSendQuote}
       />
 
       <CreateOrderModal

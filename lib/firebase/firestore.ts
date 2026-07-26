@@ -13,7 +13,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import app from './config';
-import type { AppointmentDoc, AppointmentStatus, Doctor, InvoiceDoc, PracticeDoc, SubscriptionTier } from '@/lib/types';
+import type { AppointmentDoc, AppointmentStatus, Doctor, InvoiceDoc, InvoiceLineItem, PracticeDoc, SubscriptionTier } from '@/lib/types';
 
 export const db = getFirestore(app);
 
@@ -128,6 +128,34 @@ export async function dispatchAppointment(
     updatedAt: serverTimestamp(),
     updatedBy,
   });
+}
+
+// ─── KOSTENVORANSCHLAG (Quote) ─────────────────────────────────────────────────
+// Not GoBD-relevant (no numbering/immutability rule), so plain updateDoc from
+// the dispatcher is fine — unlike invoices, which only ever get written via
+// the Admin SDK (app/api/invoices) to enforce sequential numbering.
+const QUOTE_VAT_RATE = 19;
+
+export async function createQuote(appointmentId: string, lineItems: InvoiceLineItem[], createdBy: string) {
+  const netTotalCents = lineItems.reduce((sum, li) => sum + li.netAmountCents, 0);
+  const vatAmountCents = Math.round(netTotalCents * (QUOTE_VAT_RATE / 100));
+  const grossTotalCents = netTotalCents + vatAmountCents;
+  return updateDoc(doc(db, 'appointments', appointmentId), {
+    quote: {
+      lineItems, netTotalCents, vatAmountCents, grossTotalCents,
+      status: 'sent', createdAt: serverTimestamp(), createdBy, respondedAt: null,
+    },
+    updatedAt: serverTimestamp(),
+  });
+}
+
+// One-time fetch (not realtime) for the Settings "Kunden" tab — grouping by
+// customer needs the full history, not just today's/undeleted appointments
+// like the dispatcher board's live subscribeToAppointments listener.
+export async function getAppointmentsForPractice(praxisId: string): Promise<AppointmentDoc[]> {
+  const q = query(appointmentsCol(), where('praxisId', '==', praxisId));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as AppointmentDoc));
 }
 
 // ─── RECHNUNGEN (Invoices) ─────────────────────────────────────────────────────

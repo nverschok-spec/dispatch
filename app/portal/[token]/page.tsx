@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
 import { CustomerPortal } from "@/components/portal/customer-portal"
-import type { PortalTechnician, PortalTimelineStep, PortalInvoice } from "@/types/props"
+import type { PortalTechnician, PortalTimelineStep, PortalInvoice, PortalQuote } from "@/types/props"
+
+const eur = (cents: number) => new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(cents / 100)
 
 interface PortalData {
   id: string
@@ -12,6 +14,11 @@ interface PortalData {
   praxis: { name: string; phone: string }
   mitarbeiter: { name: string; spec: string; avatarUrl: string | null } | null
   invoiceId: string | null
+  quote: {
+    lineItems: { description: string; quantity: number; unitPriceCents: number; netAmountCents: number }[]
+    grossTotalCents: number
+    status: "sent" | "accepted" | "rejected"
+  } | null
 }
 
 const STATUS_HEADLINE: Record<string, string> = {
@@ -53,12 +60,14 @@ export default function PortalPage() {
   const [data, setData] = useState<PortalData | null>(null)
   const [error, setError] = useState("")
 
-  useEffect(() => {
+  function load() {
     fetch(`/api/portal/${token}`)
       .then((res) => (res.ok ? res.json() : Promise.reject()))
       .then(setData)
       .catch(() => setError("Diese Anfrage wurde nicht gefunden. Bitte prüfe den Link."))
-  }, [token])
+  }
+
+  useEffect(load, [token])
 
   if (error) {
     return <main className="flex min-h-dvh items-center justify-center bg-muted/40 p-4 text-center text-sm text-muted-foreground">{error}</main>
@@ -82,6 +91,17 @@ export default function PortalPage() {
     ? { fileName: `Rechnung_${data.id.slice(0, 8)}.pdf`, downloadUrl: `/api/invoices/${data.invoiceId}/pdf?token=${token}`, deductibleNotePercent: 20 }
     : null
 
+  const quote: PortalQuote | null = data.quote
+    ? {
+        lineItems: data.quote.lineItems.map((li) => ({
+          description: li.description, quantity: li.quantity,
+          unitPrice: eur(li.unitPriceCents), netAmount: eur(li.netAmountCents),
+        })),
+        grossTotal: eur(data.quote.grossTotalCents),
+        status: data.quote.status,
+      }
+    : null
+
   return (
     <main className="min-h-dvh bg-muted/40">
       <CustomerPortal
@@ -93,8 +113,17 @@ export default function PortalPage() {
         technician={technician}
         steps={steps}
         invoice={invoice}
+        quote={quote}
         onCall={() => { if (data.praxis.phone) window.location.href = `tel:${data.praxis.phone}` }}
         onDownloadInvoice={() => { if (invoice) window.open(invoice.downloadUrl, "_blank") }}
+        onRespondQuote={async (response) => {
+          await fetch(`/api/portal/${token}/quote-response`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ response }),
+          })
+          load()
+        }}
       />
     </main>
   )

@@ -37,6 +37,8 @@ export interface Order {
   materialCost: number
   /** Materials the technician reported using on-site (see JobCompletion) — display-only, no pricing yet. */
   materialsUsed?: { name: string; qty: number; unit: string }[]
+  /** `undefined` when no Kostenvoranschlag has been sent for this Auftrag yet. */
+  quoteStatus?: "sent" | "accepted" | "rejected"
 }
 
 export interface PriceBreakdown {
@@ -95,6 +97,8 @@ export interface OrderDetailModalProps {
   onAssignTechnician?: (orderId: string, technicianId: string, dateTime: Date) => void | Promise<void>
   /** Called when "ZUGFeRD PDF Rechnung generieren" is clicked */
   onGenerateInvoice?: (orderId: string) => void | Promise<void>
+  /** Called when "Kostenvoranschlag senden" is clicked — uses the same price breakdown already shown. */
+  onSendQuote?: (orderId: string) => void | Promise<void>
 }
 
 /* ----------------------------------------------------------------------- */
@@ -322,6 +326,20 @@ export interface PortalInvoice {
   deductibleNotePercent?: number // e.g. 20
 }
 
+export interface PortalQuoteLineItem {
+  description: string
+  quantity: number
+  /** Pre-formatted currency string, e.g. "65,00 €" */
+  unitPrice: string
+  netAmount: string
+}
+
+export interface PortalQuote {
+  lineItems: PortalQuoteLineItem[]
+  grossTotal: string // pre-formatted, e.g. "1.190,00 €"
+  status: "sent" | "accepted" | "rejected"
+}
+
 export interface CustomerPortalProps {
   orderId: string
   /** Headline for the live-status banner, e.g. "Anfrage eingegangen" | "Handwerker ist unterwegs" — driven by the real AppointmentStatus, not hardcoded in the component. */
@@ -336,10 +354,13 @@ export interface CustomerPortalProps {
   technician: PortalTechnician | null
   steps: PortalTimelineStep[]
   invoice: PortalInvoice | null
+  /** `null` when no Kostenvoranschlag has been sent for this Auftrag. */
+  quote: PortalQuote | null
   mapImageUrl?: string
   onCall?: () => void
   onMessage?: () => void
   onDownloadInvoice?: () => void | Promise<void>
+  onRespondQuote?: (response: "accepted" | "rejected") => void | Promise<void>
 }
 
 /* ----------------------------------------------------------------------- */
