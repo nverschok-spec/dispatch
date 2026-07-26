@@ -1,8 +1,8 @@
 {
-  "name": "MeisterPlan Leitstand",
-  "short_name": "MP Leitstand",
-  "description": "Disponenten-Oberfläche für Handwerker: Auftragsplanung, Techniker-Timeline und Echtzeit-Analytics.",
-  "start_url": "/login",
+  "name": "MeisterPlan Master",
+  "short_name": "MP Master",
+  "description": "Master-Übersicht: alle Betriebe, Tarife, Aktivierung.",
+  "start_url": "/master/login",
   "display": "standalone",
   "background_color": "#0f172a",
   "theme_color": "#0f172a",

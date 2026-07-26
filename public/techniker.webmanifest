@@ -1,8 +1,8 @@
 {
-  "name": "MeisterPlan Leitstand",
-  "short_name": "MP Leitstand",
-  "description": "Disponenten-Oberfläche für Handwerker: Auftragsplanung, Techniker-Timeline und Echtzeit-Analytics.",
-  "start_url": "/login",
+  "name": "MeisterPlan Techniker",
+  "short_name": "MP Techniker",
+  "description": "Techniker-App: Tagestour, Anfahrt, Auftrag abschließen mit Unterschrift.",
+  "start_url": "/techniker/login",
   "display": "standalone",
   "background_color": "#0f172a",
   "theme_color": "#0f172a",
