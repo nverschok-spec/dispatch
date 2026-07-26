@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/components/providers/AuthProvider';
-import { getPractice, updatePracticeInfo, updateDoctors, updateBlacklist } from '@/lib/firebase/firestore';
+import { getPractice, updatePracticeInfo, updateDoctors, updateBlacklist, getAllInvoices } from '@/lib/firebase/firestore';
 import { DOC_PALETTE, normalizeDoctor, type Doctor, type DoctorStatus, type PracticeDoc } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 
@@ -107,6 +107,44 @@ export default function EinstellungenPage() {
       showToast('Fehler beim Speichern');
     } finally {
       setSaving(null);
+    }
+  }
+
+  // ── Rechnungsexport (CSV, für Buchhaltung/Steuerberater) ──────────
+  const [exporting, setExporting] = useState(false);
+
+  async function exportInvoicesCsv() {
+    if (!practice) return;
+    setExporting(true);
+    try {
+      const invoices = await getAllInvoices(practice.id);
+      const header = ['Rechnungsnummer', 'Status', 'Datum', 'Netto (€)', 'MwSt. (€)', 'Brutto (€)', 'Bezahlt am'];
+      const rows = invoices
+        .sort((a, b) => a.invoiceNumber.localeCompare(b.invoiceNumber))
+        .map((inv) => [
+          inv.invoiceNumber,
+          inv.status,
+          inv.createdAt?.toDate?.().toLocaleDateString('de-DE') ?? '',
+          (inv.netTotalCents / 100).toFixed(2),
+          (inv.vatAmountCents / 100).toFixed(2),
+          (inv.grossTotalCents / 100).toFixed(2),
+          inv.paidAt?.toDate?.().toLocaleDateString('de-DE') ?? '',
+        ]);
+      const csv = [header, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\r\n');
+      const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `rechnungen-${practice.name.replace(/\s+/g, '_')}-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      if (invoices.length === 0) showToast('Keine Rechnungen vorhanden');
+    } catch {
+      showToast('Export fehlgeschlagen');
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -393,6 +431,16 @@ export default function EinstellungenPage() {
               {saving === 'info' ? 'Wird gespeichert…' : 'Speichern'}
             </Button>
           </form>
+
+          <div className="space-y-2 rounded-2xl border border-border bg-card p-6 shadow-sm">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Rechnungsexport</h3>
+            <p className="text-xs text-muted-foreground">
+              Alle Rechnungen (offen, bezahlt, storniert) als CSV — für Buchhaltung oder Steuerberater.
+            </p>
+            <Button type="button" variant="outline" onClick={exportInvoicesCsv} disabled={exporting}>
+              {exporting ? 'Wird exportiert…' : 'Als CSV exportieren'}
+            </Button>
+          </div>
           </div>
         )}
 

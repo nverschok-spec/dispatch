@@ -141,6 +141,14 @@ export async function getOpenInvoices(praxisId: string): Promise<InvoiceDoc[]> {
     .filter((inv) => inv.status !== 'paid');
 }
 
+// GoBD/accounting export (Settings → Betrieb) — every invoice regardless of
+// status, unlike getOpenInvoices above.
+export async function getAllInvoices(praxisId: string): Promise<InvoiceDoc[]> {
+  const q = query(collection(db, 'invoices'), where('praxisId', '==', praxisId));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as InvoiceDoc));
+}
+
 // Soft-delete (DSGVO — no physical deletion). Handwerk bookings have no
 // slotLocks (no exact-slot collision system — arrival windows only), so
 // unlike the medical original this is a plain update, no batch/lock cleanup.

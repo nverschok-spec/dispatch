@@ -126,16 +126,27 @@ export interface TimelineProps {
 /* components/dispatcher/top-bar.tsx                                       */
 /* ----------------------------------------------------------------------- */
 
+export interface TopBarNotification {
+  id: string
+  title: string
+  subtitle: string
+  time: string
+}
+
 export interface TopBarProps {
   currentUser?: {
     initials: string
     name?: string
+    email?: string
   }
   notificationCount?: number
+  /** Most recent incoming requests, newest first — rendered in the bell dropdown. */
+  notifications?: TopBarNotification[]
   onSearch?: (query: string) => void
   onCreateOrder?: () => void
-  onOpenNotifications?: () => void
+  onSelectNotification?: (id: string) => void
   onOpenSettings?: () => void
+  onLogout?: () => void
 }
 
 /* ----------------------------------------------------------------------- */
@@ -177,6 +188,31 @@ export interface AnalyticsPanelProps {
   /** Manual "als bezahlt markieren" — there's no payment processor wired up yet, so this is the only way an invoice ever leaves the open list. */
   onMarkInvoicePaid?: (invoiceId: string) => void | Promise<void>
   mapImageUrl?: string
+}
+
+/* ----------------------------------------------------------------------- */
+/* components/dispatcher/create-order-modal.tsx                            */
+/* ----------------------------------------------------------------------- */
+
+export interface CreateOrderData {
+  categoryId: string
+  urgency: "normal" | "notfall"
+  description: string
+  source: "phone" | "walk-in"
+  customerName: string
+  customerPhone: string
+  customerEmail: string
+  street: string
+  houseNumber: string
+  plz: string
+  city: string
+}
+
+export interface CreateOrderModalProps {
+  open: boolean
+  categories: BookingCategory[]
+  onClose: () => void
+  onCreate: (data: CreateOrderData) => void | Promise<void>
 }
 
 /* ----------------------------------------------------------------------- */

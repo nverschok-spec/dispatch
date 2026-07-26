@@ -7,20 +7,34 @@ import { UnassignedColumn } from "@/components/dispatcher/unassigned-column"
 import { Timeline } from "@/components/dispatcher/timeline"
 import { AnalyticsPanel } from "@/components/dispatcher/analytics-panel"
 import { OrderDetailModal } from "@/components/dispatcher/order-detail-modal"
+import { CreateOrderModal } from "@/components/dispatcher/create-order-modal"
 import { useAuth } from "@/components/providers/AuthProvider"
+import { logout } from "@/lib/firebase/auth"
 import { getPractice, subscribeToAppointments, dispatchAppointment, getOpenInvoices } from "@/lib/firebase/firestore"
 import { appointmentToOrder, doctorToTechnician, computeDailyProgress, invoiceToSummary } from "@/lib/adapters"
 import { cn } from "@/lib/utils"
+import { GEWERKE, HANDWERK_CATALOG, type Gewerk } from "@/lib/data/handwerkCatalog"
 import type { AppointmentDoc, PracticeDoc } from "@/lib/types"
-import type { InvoiceSummary, Order } from "@/types/props"
+import type { BookingCategory, CreateOrderData, InvoiceSummary, Order } from "@/types/props"
+
+const CATEGORY_ICON_KEY: Record<string, string> = {
+  Sanitaer: "sanitaer", Heizung: "heizung", Elektrik: "elektro", GaLaBau: "sanitaer", Notdienst: "sanitaer", Sonstiges: "schluessel",
+}
+
+function resolveGewerk(practice: PracticeDoc): Gewerk {
+  return GEWERKE.find((g) => g === practice.specialty) ?? GEWERKE[0]
+}
 
 type MobileTab = "warteschlange" | "timeline" | "analytics"
 
 function isToday(a: AppointmentDoc): boolean {
+  return isSameDay(a, new Date())
+}
+
+function isSameDay(a: AppointmentDoc, ref: Date): boolean {
   const d = a.dateTime?.toDate?.()
   if (!d) return false
-  const t = new Date()
-  return d.getFullYear() === t.getFullYear() && d.getMonth() === t.getMonth() && d.getDate() === t.getDate()
+  return d.getFullYear() === ref.getFullYear() && d.getMonth() === ref.getMonth() && d.getDate() === ref.getDate()
 }
 
 export default function DispatcherPage() {
@@ -33,6 +47,8 @@ export default function DispatcherPage() {
   const [selected, setSelected] = useState<Order | null>(null)
   const [search, setSearch] = useState("")
   const [mobileTab, setMobileTab] = useState<MobileTab>("timeline")
+  const [showCreateOrder, setShowCreateOrder] = useState(false)
+  const [selectedDate, setSelectedDate] = useState(() => new Date())
 
   useEffect(() => {
     if (!authLoading && (!user || claims?.role !== "praxisAdmin")) {
@@ -72,6 +88,55 @@ export default function DispatcherPage() {
   )
 
   const dailyProgress = useMemo(() => computeDailyProgress(dispatchedToday), [dispatchedToday])
+
+  // The Timeline is browsable to other days, independent of the live "today"
+  // fleet status shown in Analytics/OrderDetailModal above — a technician's
+  // real-time "unterwegs"/"vor Ort" badge shouldn't flip based on which day
+  // the dispatcher happens to be looking at.
+  const dispatchedOnSelectedDate = useMemo(
+    () => appointments.filter((a) => a.doctorId && isSameDay(a, selectedDate) && !a.deleted && a.status !== "online_request"),
+    [appointments, selectedDate],
+  )
+
+  const timelineTechnicians = useMemo(
+    () => (practice?.doctors ?? []).filter((d) => d.isActive).map((d) => doctorToTechnician(d, dispatchedOnSelectedDate)),
+    [practice?.doctors, dispatchedOnSelectedDate],
+  )
+
+  const orderCategories: BookingCategory[] = useMemo(() => {
+    if (!practice) return []
+    const gewerk = resolveGewerk(practice)
+    return HANDWERK_CATALOG[gewerk].map((item) => ({
+      id: item.name,
+      label: item.name,
+      desc: `${item.durationMin} Min. geschätzt`,
+      iconKey: CATEGORY_ICON_KEY[item.category] ?? "schluessel",
+      urgent: item.urgent,
+    }))
+  }, [practice])
+
+  async function handleCreateOrder(data: CreateOrderData) {
+    if (!user || !practice) return
+    const gewerk = resolveGewerk(practice)
+    const idToken = await user.getIdToken()
+    const res = await fetch("/api/dispatch/create-order", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+      body: JSON.stringify({
+        gewerk,
+        problemName: data.categoryId,
+        urgency: data.urgency,
+        description: data.description,
+        source: data.source,
+        address: { street: data.street, houseNumber: data.houseNumber, plz: data.plz, city: data.city },
+        customerName: data.customerName,
+        customerPhone: data.customerPhone,
+        customerEmail: data.customerEmail,
+      }),
+    })
+    if (!res.ok) throw new Error("Auftrag konnte nicht angelegt werden.")
+    setShowCreateOrder(false)
+  }
 
   async function handleAssignTechnician(orderId: string, technicianId: string, dateTime: Date) {
     if (!user) return
@@ -129,10 +194,14 @@ export default function DispatcherPage() {
   return (
     <div className="flex h-dvh flex-col bg-background text-foreground">
       <TopBar
-        currentUser={{ initials: "DP", name: practice.name }}
+        currentUser={{ initials: "DP", name: practice.name, email: user?.email ?? undefined }}
         notificationCount={unassignedOrders.length}
+        notifications={unassignedOrders.slice(0, 8).map((o) => ({ id: o.id, title: o.title, subtitle: o.contactName, time: o.receivedAt }))}
         onSearch={setSearch}
+        onCreateOrder={() => setShowCreateOrder(true)}
+        onSelectNotification={(id) => setSelected(unassignedOrders.find((o) => o.id === id) ?? null)}
         onOpenSettings={() => router.push("/dashboard/einstellungen")}
+        onLogout={() => logout().then(() => router.replace("/login"))}
       />
       {/* Below `lg` there's no room for all three panels side by side — a tab
           switcher stands in for the grid instead of just hiding two of them. */}
@@ -161,8 +230,10 @@ export default function DispatcherPage() {
         </div>
         <div className={cn("min-h-0", mobileTab === "timeline" ? "block" : "hidden", "lg:block")}>
           <Timeline
-            technicians={technicians}
-            selectedDateLabel={new Date().toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "long" })}
+            technicians={timelineTechnicians}
+            selectedDateLabel={selectedDate.toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "long" })}
+            onPrevDay={() => setSelectedDate((d) => { const n = new Date(d); n.setDate(n.getDate() - 1); return n })}
+            onNextDay={() => setSelectedDate((d) => { const n = new Date(d); n.setDate(n.getDate() + 1); return n })}
           />
         </div>
         <div className={cn("min-h-0", mobileTab === "analytics" ? "block" : "hidden", "xl:block")}>
@@ -182,6 +253,13 @@ export default function DispatcherPage() {
         technicians={technicians}
         onAssignTechnician={handleAssignTechnician}
         onGenerateInvoice={handleGenerateInvoice}
+      />
+
+      <CreateOrderModal
+        open={showCreateOrder}
+        categories={orderCategories}
+        onClose={() => setShowCreateOrder(false)}
+        onCreate={handleCreateOrder}
       />
     </div>
   )
