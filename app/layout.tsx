@@ -1,16 +1,16 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
+import { Fraunces, Manrope } from 'next/font/google'
 import { AuthProvider } from '@/components/providers/AuthProvider'
 import './globals.css'
 
-const geistSans = Geist({ subsets: ['latin'], variable: '--font-geist-sans' })
-const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-geist-mono' })
+const manrope = Manrope({ subsets: ['latin'], variable: '--font-manrope' })
+const fraunces = Fraunces({ subsets: ['latin'], variable: '--font-fraunces', display: 'swap' })
 
 export const metadata: Metadata = {
-  title: 'MeisterPlan — Handwerker Leitstand',
+  title: 'Lavender Edition Systems — Software mit Haltung',
   description:
-    'MeisterPlan — moderne Disponenten-Oberfläche für Handwerker: Auftragsplanung, Techniker-Timeline und Echtzeit-Analytics.',
+    'Sorgfältig entwickelte digitale Werkzeuge für Menschen, die ihr Handwerk verstehen.',
   generator: 'v0.app',
   manifest: '/site.webmanifest',
   icons: {
@@ -23,11 +23,8 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  colorScheme: 'light dark',
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: 'white' },
-    { media: '(prefers-color-scheme: dark)', color: 'black' },
-  ],
+  colorScheme: 'dark',
+  themeColor: '#150f22',
 }
 
 export default function RootLayout({
@@ -36,7 +33,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="de" className={`bg-background ${geistSans.variable} ${geistMono.variable}`}>
+    <html lang="de" className={`${manrope.variable} ${fraunces.variable}`}>
       <body className="font-sans antialiased">
         <AuthProvider>{children}</AuthProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}
